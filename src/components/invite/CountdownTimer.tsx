@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getInviteTheme } from "@/lib/theme-styles";
 
 interface CountdownTimerProps {
   eventDate: string | null;
@@ -45,7 +46,7 @@ function calculateRemaining(dateStr: string): TimeRemaining {
 
 export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
   const [remaining, setRemaining] = useState<TimeRemaining | null>(null);
-  const isMinimal = themeId === "minimal_ivory";
+  const theme = getInviteTheme(themeId);
 
   useEffect(() => {
     if (!eventDate) return;
@@ -63,12 +64,12 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
         {["Days", "Hours", "Mins", "Secs"].map((label) => (
           <div
             key={label}
-            className="rounded-xl border border-[#C88A2E]/25 bg-[#FFFDF8] px-2 py-3 text-center"
+            className={`rounded-xl border px-2 py-3 text-center ${theme.countdownCell}`}
           >
-            <div className="font-serif text-2xl font-semibold text-[#5B1422] sm:text-3xl">
+            <div className={`font-serif text-2xl font-semibold sm:text-3xl ${theme.countdownValue}`}>
               --
             </div>
-            <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[#7A6258]">
+            <div className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] ${theme.mutedText}`}>
               {label}
             </div>
           </div>
@@ -79,7 +80,9 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
 
   if (remaining.status === "today") {
     return (
-      <div className="mx-auto mt-6 inline-flex items-center rounded-full border border-[#C88A2E]/40 bg-[#F4E4C1]/60 px-5 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#5B1422]">
+      <div
+        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.22em] ${theme.pillBg} ${theme.pillText}`}
+      >
         Celebrating Today
       </div>
     );
@@ -87,7 +90,9 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
 
   if (remaining.status === "past") {
     return (
-      <div className="mx-auto mt-6 inline-flex items-center rounded-full border border-[#C88A2E]/30 bg-[#F5ECDC] px-5 py-2 text-xs font-medium uppercase tracking-[0.2em] text-[#69564E]">
+      <div
+        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-xs font-medium uppercase tracking-[0.2em] ${theme.pillBg} ${theme.mutedText}`}
+      >
         Celebrated with Joy
       </div>
     );
@@ -108,20 +113,16 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
       {cells.map((cell) => (
         <div
           key={cell.label}
-          className={`rounded-xl border px-2 py-3 text-center shadow-[0_2px_10px_rgba(91,20,34,0.04)] ${
-            isMinimal
-              ? "border-[#C88A2E]/25 bg-white"
-              : "border-[#C88A2E]/30 bg-[#FFFDF8]"
-          }`}
+          className={`rounded-xl border px-2 py-3 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)] ${theme.countdownCell}`}
         >
           <div
-            className={`font-serif text-2xl font-semibold tabular-nums sm:text-3xl ${
-              isMinimal ? "text-[#2B211E]" : "text-[#5B1422]"
-            }`}
+            className={`font-serif text-2xl font-semibold tabular-nums sm:text-3xl ${theme.countdownValue}`}
           >
             {String(cell.value).padStart(2, "0")}
           </div>
-          <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[#7A6258]">
+          <div
+            className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] ${theme.mutedText}`}
+          >
             {cell.label}
           </div>
         </div>

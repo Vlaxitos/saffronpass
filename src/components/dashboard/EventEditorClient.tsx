@@ -8,34 +8,41 @@ import {
   ExternalLink,
   Link2,
   Palette,
+  UserCheck,
   Users,
 } from "lucide-react";
 import { BasicsDesignTab } from "@/components/dashboard/tabs/BasicsDesignTab";
 import { CategoriesTab } from "@/components/dashboard/tabs/CategoriesTab";
+import { CohostsTab } from "@/components/dashboard/tabs/CohostsTab";
 import { LiveRsvpsTab } from "@/components/dashboard/tabs/LiveRsvpsTab";
 import { SubEventsTab } from "@/components/dashboard/tabs/SubEventsTab";
 import { PLAN_LABELS } from "@/lib/constants";
 import type {
+  EventCohostRecord,
   EventRecord,
   InviteCategoryRecord,
   RsvpRecord,
   SubEventRecord,
 } from "@/types/database";
 
-type EditorTabId = "basics" | "sub_events" | "categories" | "rsvps";
+type EditorTabId = "basics" | "sub_events" | "categories" | "rsvps" | "cohosts";
 
 interface EventEditorClientProps {
   event: EventRecord;
+  isOwner: boolean;
   subEvents: SubEventRecord[];
   categories: InviteCategoryRecord[];
   rsvps: RsvpRecord[];
+  cohosts: EventCohostRecord[];
 }
 
 export function EventEditorClient({
   event,
+  isOwner,
   subEvents,
   categories,
   rsvps,
+  cohosts,
 }: EventEditorClientProps) {
   const [activeTab, setActiveTab] = useState<EditorTabId>("basics");
 
@@ -75,6 +82,13 @@ export function EventEditorClient({
       icon: Users,
       count: rsvps.length,
     },
+    {
+      id: "cohosts",
+      label: "Co-Hosts",
+      shortLabel: "Co-Hosts",
+      icon: UserCheck,
+      count: cohosts.length,
+    },
   ];
 
   return (
@@ -94,6 +108,11 @@ export function EventEditorClient({
             <h1 className="font-serif text-3xl font-semibold text-[#4A101C] sm:text-4xl">
               {event.host_names}
             </h1>
+            {!isOwner && (
+              <span className="rounded-full bg-[#1F6E4A]/12 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#175438]">
+                Co-Host Access
+              </span>
+            )}
             <span
               className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
                 event.plan === "free"
@@ -131,7 +150,7 @@ export function EventEditorClient({
         </div>
       </div>
 
-      {/* Mobile-Friendly 4-Tab Bar */}
+      {/* Mobile-Friendly 5-Tab Bar */}
       <div
         role="tablist"
         aria-label="Event editor sections"
@@ -176,7 +195,9 @@ export function EventEditorClient({
 
       {/* Active Tab Panel */}
       <div className="mt-7 pb-12">
-        {activeTab === "basics" && <BasicsDesignTab event={event} />}
+        {activeTab === "basics" && (
+          <BasicsDesignTab event={event} isOwner={isOwner} />
+        )}
         {activeTab === "sub_events" && (
           <SubEventsTab
             eventId={event.id}
@@ -188,6 +209,8 @@ export function EventEditorClient({
           <CategoriesTab
             eventId={event.id}
             eventSlug={event.slug}
+            hostNames={event.host_names}
+            eventTitle={event.title}
             subEvents={subEvents}
             categories={categories}
           />
@@ -195,10 +218,19 @@ export function EventEditorClient({
         {activeTab === "rsvps" && (
           <LiveRsvpsTab
             eventId={event.id}
+            eventSlug={event.slug}
+            hostNames={event.host_names}
             plan={event.plan}
             subEvents={subEvents}
             categories={categories}
             rsvps={rsvps}
+          />
+        )}
+        {activeTab === "cohosts" && (
+          <CohostsTab
+            eventId={event.id}
+            isOwner={isOwner}
+            cohosts={cohosts}
           />
         )}
       </div>

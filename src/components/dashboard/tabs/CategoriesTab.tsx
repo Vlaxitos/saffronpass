@@ -10,6 +10,7 @@ import {
   ExternalLink,
   EyeOff,
   Link2,
+  MessageCircle,
   Plus,
   Trash2,
   Users,
@@ -35,6 +36,8 @@ const emptySubscribe = () => () => {};
 interface CategoriesTabProps {
   eventId: string;
   eventSlug: string;
+  hostNames: string;
+  eventTitle: string;
   subEvents: SubEventRecord[];
   categories: InviteCategoryRecord[];
 }
@@ -42,6 +45,8 @@ interface CategoriesTabProps {
 export function CategoriesTab({
   eventId,
   eventSlug,
+  hostNames,
+  eventTitle,
   subEvents,
   categories,
 }: CategoriesTabProps) {
@@ -170,6 +175,15 @@ export function CategoriesTab({
   const buildShareUrl = (code: string) => {
     const base = origin || "";
     return `${base}/${eventSlug}/${code}`;
+  };
+
+  const buildWhatsAppShareUrl = (cat: InviteCategoryRecord) => {
+    const shareUrl = buildShareUrl(cat.code);
+    const greetingLine = cat.greeting_prefix
+      ? `${cat.greeting_prefix} — `
+      : "";
+    const message = `Namaste! ${greetingLine}You are warmly invited to ${hostNames}'s ${eventTitle}.\n\nTap below to open your personal interactive invitation and RSVP:\n${shareUrl}`;
+    return `https://wa.me/?text=${encodeURIComponent(message)}`;
   };
 
   const handleCopy = async (cat: InviteCategoryRecord) => {
@@ -408,7 +422,7 @@ export function CategoriesTab({
             Active Guest-Circle Links ({categories.length})
           </h2>
           <p className="text-xs text-[#7A6258]">
-            Share each private URL on WhatsApp with that exact guest group.
+            Share each private URL directly on WhatsApp with that exact guest group.
           </p>
         </div>
 
@@ -512,13 +526,13 @@ export function CategoriesTab({
                     )}
                   </div>
 
-                  {/* Copyable Secret Link & Preview Button */}
-                  <div className="mt-4 flex flex-col gap-2 rounded-xl border border-[#C88A2E]/25 bg-[#FCF8F1] p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <code className="truncate font-mono text-xs text-[#4A101C]">
+                  {/* Copyable Secret Link, Share on WhatsApp & Open Preview */}
+                  <div className="mt-4 space-y-2.5 rounded-xl border border-[#C88A2E]/25 bg-[#FCF8F1] p-3">
+                    <code className="block truncate font-mono text-xs text-[#4A101C]">
                       {shareUrl}
                     </code>
 
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => handleCopy(cat)}
@@ -536,6 +550,16 @@ export function CategoriesTab({
                           </>
                         )}
                       </button>
+
+                      <a
+                        href={buildWhatsAppShareUrl(cat)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F6E4A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#175438]"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Share on WhatsApp
+                      </a>
 
                       <a
                         href={`/${eventSlug}/${cat.code}`}

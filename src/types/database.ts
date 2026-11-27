@@ -17,9 +17,32 @@ export type TraditionSymbolType =
   | "floral"
   | "none";
 
-export type OpeningAnimationType = "wax_seal" | "palace_doors";
+export type OpeningAnimationType =
+  | "wax_seal"
+  | "palace_doors"
+  | "cinematic_scroll";
 
-export type ThemeId = "royal_saffron" | "minimal_ivory";
+export type ThemeId =
+  | "royal_saffron"
+  | "minimal_ivory"
+  | "pastel_udaipur"
+  | "south_indian_silk"
+  | "dark_sangeet_glam";
+
+export type ParticleEffectType =
+  | "none"
+  | "marigold"
+  | "rose_petals"
+  | "gold_sparkles";
+
+export type MusicTrackType =
+  | "none"
+  | "royal_shehnai"
+  | "romantic_piano"
+  | "sitar_bliss"
+  | "celebration_chimes"
+  | "acoustic_warmth"
+  | "custom";
 
 export type PlanTier =
   | "free"
@@ -62,6 +85,22 @@ export interface EventRecord {
   rsvp_enabled: boolean;
   plan: PlanTier;
   expires_at: string | null;
+  created_at: string;
+  // Phase 2 fields
+  cover_image_url?: string | null;
+  gallery_images?: string[] | null;
+  particle_effect?: ParticleEffectType | null;
+  scratch_reveal_enabled?: boolean | null;
+  music_track?: MusicTrackType | null;
+  custom_music_url?: string | null;
+}
+
+export interface EventCohostRecord {
+  id: string;
+  event_id: string;
+  email: string;
+  side_tag: SideTag;
+  invited_by: string | null;
   created_at: string;
 }
 
@@ -141,6 +180,12 @@ export interface PublicInviteDTO {
     opening_animation: OpeningAnimationType;
     rsvp_enabled: boolean;
     plan: PlanTier;
+    cover_image_url: string | null;
+    gallery_images: string[];
+    particle_effect: ParticleEffectType;
+    scratch_reveal_enabled: boolean;
+    music_track: MusicTrackType;
+    custom_music_url: string | null;
   };
   category: {
     code: string;

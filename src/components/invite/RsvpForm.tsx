@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useSyncExternalStore } from "react";
 import { Check, CheckCircle2, Edit3, Users, AlertCircle } from "lucide-react";
 import { MEAL_PREFERENCES } from "@/lib/constants";
+import { getInviteTheme } from "@/lib/theme-styles";
 import {
   formatShortDate,
   getEtiquetteHeadline,
@@ -45,10 +46,14 @@ export function RsvpForm({
   demoMode = false,
 }: RsvpFormProps) {
   const storageKey = `saffronpass_rsvp:${slug}:${code}`;
-  const isMinimal = themeId === "minimal_ivory";
+  const theme = getInviteTheme(themeId);
 
   const effectiveMaxSeats =
-    etiquetteType === "solo" ? 1 : etiquetteType === "couple" ? 2 : Math.max(1, maxSeats);
+    etiquetteType === "solo"
+      ? 1
+      : etiquetteType === "couple"
+        ? 2
+        : Math.max(1, maxSeats);
 
   const buildDefaultSubEventState = () => {
     const initial: Record<string, { attending: boolean; guestCount: number }> = {};
@@ -210,7 +215,9 @@ export function RsvpForm({
       };
       setSessionReceipt(demoReceipt);
       setIsEditing(false);
-      setSuccessBanner("Demo RSVP confirmed! On a live invite, this syncs instantly to the host dashboard.");
+      setSuccessBanner(
+        "Demo RSVP confirmed! On a live invite, this syncs instantly to the host dashboard."
+      );
       return;
     }
 
@@ -253,7 +260,9 @@ export function RsvpForm({
         // Ignore private browsing storage quota errors
       }
     } catch {
-      setErrorMessage("Network error while sending RSVP. Please check your connection and retry.");
+      setErrorMessage(
+        "Network error while sending RSVP. Please check your connection and retry."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -264,28 +273,32 @@ export function RsvpForm({
   return (
     <section
       id="rsvp-section"
-      className={`mt-10 rounded-2xl border p-6 shadow-[0_8px_32px_rgba(91,20,34,0.06)] sm:p-8 ${
-        isMinimal
-          ? "border-[#C88A2E]/30 bg-white"
-          : "border-[#C88A2E]/35 bg-[#FFFDF8]"
-      }`}
+      className={`mt-10 rounded-2xl border p-6 shadow-[0_8px_32px_rgba(0,0,0,0.08)] sm:p-8 ${theme.cardBorder} ${theme.cardBg}`}
     >
       {/* Header & Etiquette Notice */}
       <div className="text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C88A2E]">
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}>
           Kindly Respond
         </p>
-        <h2 className="mt-1.5 font-serif text-3xl font-semibold text-[#4A101C]">
+        <h2 className={`mt-1.5 font-serif text-3xl font-semibold ${theme.headingText}`}>
           RSVP
         </h2>
-        <div className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-[#C88A2E]/35 bg-[#FCF5E8] px-4 py-1.5 text-xs font-medium text-[#5B1422]">
-          <Users className="h-3.5 w-3.5 text-[#C88A2E]" />
+        <div
+          className={`mx-auto mt-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium ${theme.pillBg} ${theme.pillText}`}
+        >
+          <Users className={`h-3.5 w-3.5 ${theme.accentText}`} />
           <span>{getEtiquetteHeadline(etiquetteType, effectiveMaxSeats, greetingPrefix)}</span>
         </div>
       </div>
 
       {successBanner && (
-        <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-[#1F6E4A]/30 bg-[#1F6E4A]/8 p-3.5 text-sm text-[#175438]">
+        <div
+          className={`mt-6 flex items-start gap-2.5 rounded-xl border p-3.5 text-sm ${
+            theme.isDark
+              ? "border-emerald-400/35 bg-emerald-950/60 text-emerald-200"
+              : "border-[#1F6E4A]/30 bg-[#1F6E4A]/8 text-[#175438]"
+          }`}
+        >
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{successBanner}</span>
         </div>
@@ -293,14 +306,22 @@ export function RsvpForm({
 
       {/* Returning Guest Confirmed Receipt */}
       {savedReceipt && !isEditing ? (
-        <div className="mt-6 rounded-2xl border border-[#C88A2E]/30 bg-[#FCF8F1] p-5 text-center sm:p-6">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#1F6E4A]/12 text-[#1F6E4A]">
+        <div
+          className={`mt-6 rounded-2xl border p-5 text-center sm:p-6 ${theme.subCardActive}`}
+        >
+          <div
+            className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full ${
+              theme.isDark
+                ? "bg-emerald-500/20 text-emerald-300"
+                : "bg-[#1F6E4A]/12 text-[#1F6E4A]"
+            }`}
+          >
             <Check className="h-5 w-5" />
           </div>
-          <h3 className="mt-3 font-serif text-2xl font-semibold text-[#4A101C]">
+          <h3 className={`mt-3 font-serif text-2xl font-semibold ${theme.headingText}`}>
             You already confirmed
           </h3>
-          <p className="mt-1 text-sm text-[#69564E]">
+          <p className={`mt-1 text-sm ${theme.mutedText}`}>
             {savedReceipt.guestName} ·{" "}
             {savedReceipt.overallAttending
               ? "Joyfully Attending"
@@ -317,8 +338,12 @@ export function RsvpForm({
                     key={se.id}
                     className={`rounded-full border px-3 py-1 text-xs font-medium ${
                       isYes
-                        ? "border-[#1F6E4A]/30 bg-[#1F6E4A]/10 text-[#175438]"
-                        : "border-[#241815]/12 bg-white/80 text-[#7A6258] line-through"
+                        ? theme.isDark
+                          ? "border-emerald-400/35 bg-emerald-950/70 text-emerald-200"
+                          : "border-[#1F6E4A]/30 bg-[#1F6E4A]/10 text-[#175438]"
+                        : theme.isDark
+                          ? "border-white/15 bg-white/5 text-[#A897A3] line-through"
+                          : "border-[#241815]/12 bg-white/80 text-[#7A6258] line-through"
                     }`}
                   >
                     {se.name}
@@ -332,7 +357,7 @@ export function RsvpForm({
           <button
             type="button"
             onClick={() => startEditingFromReceipt(savedReceipt)}
-            className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#5B1422]/25 bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#5B1422] transition-colors hover:border-[#5B1422] hover:bg-[#5B1422] hover:text-white"
+            className={`mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] transition-colors ${theme.secondaryBtn}`}
           >
             <Edit3 className="h-3.5 w-3.5" />
             Tap to Edit Your RSVP
@@ -343,7 +368,11 @@ export function RsvpForm({
           {errorMessage && (
             <div
               role="alert"
-              className="flex items-start gap-2.5 rounded-xl border border-[#8E1E31]/30 bg-[#8E1E31]/8 p-3.5 text-sm text-[#6B1222]"
+              className={`flex items-start gap-2.5 rounded-xl border p-3.5 text-sm ${
+                theme.isDark
+                  ? "border-rose-400/40 bg-rose-950/60 text-rose-200"
+                  : "border-[#8E1E31]/30 bg-[#8E1E31]/8 text-[#6B1222]"
+              }`}
             >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{errorMessage}</span>
@@ -355,7 +384,7 @@ export function RsvpForm({
             <div>
               <label
                 htmlFor={`guest-name-${code}`}
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+                className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
               >
                 Your Full Name *
               </label>
@@ -366,14 +395,14 @@ export function RsvpForm({
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
                 placeholder="e.g., Rohan Mehta"
-                className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] placeholder:text-[#9A877D] focus:border-[#5B1422] focus:outline-none focus:ring-2 focus:ring-[#C88A2E]/25"
+                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
               />
             </div>
 
             <div>
               <label
                 htmlFor={`guest-phone-${code}`}
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+                className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
               >
                 Phone Number (WhatsApp) *
               </label>
@@ -384,14 +413,16 @@ export function RsvpForm({
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+91 98765 43210"
-                className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] placeholder:text-[#9A877D] focus:border-[#5B1422] focus:outline-none focus:ring-2 focus:ring-[#C88A2E]/25"
+                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
               />
             </div>
           </div>
 
           {/* Overall Attendance Toggle */}
           <div>
-            <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
+            <span
+              className={`mb-2 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+            >
               Will You Join Us?
             </span>
             <div className="grid grid-cols-2 gap-3">
@@ -400,8 +431,8 @@ export function RsvpForm({
                 onClick={() => setOverallAttending(true)}
                 className={`cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
                   overallAttending
-                    ? "border-[#5B1422] bg-[#5B1422] text-[#FCF8F1] shadow-sm"
-                    : "border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8]"
+                    ? `${theme.primaryBtn} border-transparent shadow-sm`
+                    : theme.secondaryBtn
                 }`}
               >
                 Joyfully Accepts
@@ -411,8 +442,8 @@ export function RsvpForm({
                 onClick={() => setOverallAttending(false)}
                 className={`cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
                   !overallAttending
-                    ? "border-[#5B1422] bg-[#5B1422] text-[#FCF8F1] shadow-sm"
-                    : "border-[#C88A2E]/30 bg-white text-[#69564E] hover:bg-[#FCF5E8]"
+                    ? `${theme.primaryBtn} border-transparent shadow-sm`
+                    : theme.secondaryBtn
                 }`}
               >
                 Regretfully Declines
@@ -424,10 +455,12 @@ export function RsvpForm({
           {overallAttending && subEvents.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
-                  Select Ceremonies & Guests
+                <span
+                  className={`text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+                >
+                  Select Ceremonies &amp; Guests
                 </span>
-                <span className="text-xs text-[#7A6258]">
+                <span className={`text-xs ${theme.mutedText}`}>
                   {etiquetteType === "solo"
                     ? "1 seat per ceremony"
                     : `Up to ${effectiveMaxSeats} seats per ceremony`}
@@ -445,32 +478,35 @@ export function RsvpForm({
                     <div
                       key={se.id}
                       className={`rounded-xl border p-3.5 transition-colors sm:p-4 ${
-                        state.attending
-                          ? "border-[#C88A2E]/45 bg-[#FCF8F1]"
-                          : "border-[#241815]/10 bg-white/60"
+                        state.attending ? theme.subCardActive : theme.subCardInactive
                       }`}
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="font-serif text-lg font-semibold text-[#4A101C]">
+                          <p className={`font-serif text-lg font-semibold ${theme.headingText}`}>
                             {se.name}
                           </p>
-                          <p className="text-xs text-[#7A6258]">
+                          <p className={`text-xs ${theme.mutedText}`}>
                             {formatShortDate(se.event_date)}
                             {se.start_time ? ` · ${se.start_time}` : ""}
                           </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2.5">
-                          {/* Yes / No Toggle */}
-                          <div className="inline-flex rounded-lg border border-[#C88A2E]/35 bg-white p-0.5">
+                          <div
+                            className={`inline-flex rounded-lg border p-0.5 ${
+                              theme.isDark
+                                ? "border-[#E8C67A]/30 bg-[#170A1B]"
+                                : "border-[#C88A2E]/35 bg-white"
+                            }`}
+                          >
                             <button
                               type="button"
                               onClick={() => handleToggleSubEvent(se.id, true)}
                               className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                                 state.attending
                                   ? "bg-[#1F6E4A] text-white"
-                                  : "text-[#69564E] hover:text-[#241815]"
+                                  : `${theme.mutedText}`
                               }`}
                             >
                               Yes
@@ -481,7 +517,7 @@ export function RsvpForm({
                               className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                                 !state.attending
                                   ? "bg-[#5B1422] text-white"
-                                  : "text-[#69564E] hover:text-[#241815]"
+                                  : `${theme.mutedText}`
                               }`}
                             >
                               No
@@ -491,11 +527,13 @@ export function RsvpForm({
                           {/* Seat selector: strictly hidden for Solo */}
                           {state.attending &&
                             (etiquetteType === "solo" ? (
-                              <span className="rounded-lg border border-[#C88A2E]/30 bg-white px-2.5 py-1.5 text-xs font-medium text-[#5B1422]">
+                              <span
+                                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${theme.pillBg} ${theme.pillText}`}
+                              >
                                 1 Guest
                               </span>
                             ) : (
-                              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5B1422]">
+                              <label className="inline-flex items-center gap-1.5 text-xs font-medium">
                                 <span className="sr-only">Guests for {se.name}</span>
                                 <select
                                   value={state.guestCount}
@@ -505,7 +543,7 @@ export function RsvpForm({
                                       Number(e.target.value)
                                     )
                                   }
-                                  className="cursor-pointer rounded-lg border border-[#C88A2E]/45 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#4A101C] focus:border-[#5B1422] focus:outline-none"
+                                  className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none ${theme.inputClass}`}
                                 >
                                   {seatChoices.map((n) => (
                                     <option key={n} value={n}>
@@ -527,7 +565,9 @@ export function RsvpForm({
           {/* Optional Meal Preference */}
           {overallAttending && (
             <div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
+              <span
+                className={`mb-2 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+              >
                 Meal Preference (Optional)
               </span>
               <div className="flex flex-wrap gap-2">
@@ -541,7 +581,7 @@ export function RsvpForm({
                     className={`cursor-pointer rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
                       mealPreference === meal
                         ? "border-[#C88A2E] bg-[#C88A2E] text-[#241405]"
-                        : "border-[#C88A2E]/35 bg-white text-[#5B1422] hover:bg-[#FCF5E8]"
+                        : `${theme.pillBg} ${theme.pillText}`
                     }`}
                   >
                     {meal}
@@ -555,7 +595,7 @@ export function RsvpForm({
           <div>
             <label
               htmlFor={`guest-note-${code}`}
-              className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+              className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
             >
               Blessings or Note for the Host (Optional)
             </label>
@@ -565,7 +605,7 @@ export function RsvpForm({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Warm wishes, arrival timing, or dietary notes..."
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] placeholder:text-[#9A877D] focus:border-[#5B1422] focus:outline-none focus:ring-2 focus:ring-[#C88A2E]/25"
+              className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
             />
           </div>
 
@@ -573,7 +613,7 @@ export function RsvpForm({
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 cursor-pointer rounded-xl bg-[#5B1422] px-6 py-3.5 text-sm font-semibold tracking-[0.06em] text-[#FCF8F1] shadow-md transition-all hover:bg-[#460E19] disabled:cursor-not-allowed disabled:opacity-60"
+              className={`flex-1 cursor-pointer rounded-xl px-6 py-3.5 text-sm font-semibold tracking-[0.06em] shadow-md transition-all disabled:cursor-not-allowed disabled:opacity-60 ${theme.primaryBtn}`}
             >
               {submitting
                 ? "Saving Your Response..."
@@ -585,7 +625,7 @@ export function RsvpForm({
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="cursor-pointer rounded-xl border border-[#C88A2E]/40 bg-white px-5 py-3.5 text-sm font-medium text-[#5B1422] hover:bg-[#FCF5E8]"
+                className={`cursor-pointer rounded-xl border px-5 py-3.5 text-sm font-medium transition-colors ${theme.secondaryBtn}`}
               >
                 Cancel
               </button>

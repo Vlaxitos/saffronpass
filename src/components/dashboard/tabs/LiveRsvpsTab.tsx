@@ -4,18 +4,23 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  Download,
   Filter,
+  MessageCircle,
   Search,
   Trash2,
+  UserPlus,
   Users,
   Utensils,
 } from "lucide-react";
 import { deleteRsvpAction } from "@/app/dashboard/actions";
+import { ManualGuestModal } from "@/components/dashboard/tabs/ManualGuestModal";
 import {
   FREE_PLAN_RSVP_LIMIT,
   getSideTagLabel,
   SIDE_TAGS,
 } from "@/lib/constants";
+import { buildCatererCsv, isManualPlaceholderPhone } from "@/lib/csv-export";
 import type {
   InviteCategoryRecord,
   PlanTier,
@@ -26,6 +31,8 @@ import type {
 
 interface LiveRsvpsTabProps {
   eventId: string;
+  eventSlug: string;
+  hostNames: string;
   plan: PlanTier;
   subEvents: SubEventRecord[];
   categories: InviteCategoryRecord[];
@@ -34,6 +41,8 @@ interface LiveRsvpsTabProps {
 
 export function LiveRsvpsTab({
   eventId,
+  eventSlug,
+  hostNames,
   plan,
   subEvents,
   categories,
@@ -44,6 +53,8 @@ export function LiveRsvpsTab({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sideFilter, setSideFilter] = useState<SideTag | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualModalKey, setManualModalKey] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +64,6 @@ export function LiveRsvpsTab({
     [categories]
   );
 
-  // Filtered guest RSVPs by Category, Side Tag, and Search
   const filteredRsvps = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return rsvps.filter((rsvp) => {
@@ -72,7 +82,9 @@ export function LiveRsvpsTab({
 
       if (q) {
         const matchName = rsvp.guest_name.toLowerCase().includes(q);
-        const matchPhone = rsvp.phone_number.toLowerCase().includes(q);
+        const matchPhone =
+          !isManualPlaceholderPhone(rsvp.phone_number) &&
+          rsvp.phone_number.toLowerCase().includes(q);
         if (!matchName && !matchPhone) return false;
       }
 
@@ -80,7 +92,7 @@ export function LiveRsvpsTab({
     });
   }, [rsvps, categoryFilter, sideFilter, searchQuery, categoryMap]);
 
-  // Exact confirmed headcount per sub-event (calculated across filtered view AND total)
+  // Exact confirmed headcount per sub-event (includes both Online and Manual RSVPs)
   const subEventStats = useMemo(() => {
     return subEvents.map((se) => {
       let confirmedGuests = 0;
@@ -124,6 +136,29 @@ export function LiveRsvpsTab({
     }
   };
 
+  const handleExportCsv = () => {
+    const csvContent = buildCatererCsv({
+      rsvps: filteredRsvps,
+      subEvents,
+      categories,
+    });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${eventSlug || "saffronpass"}-caterer-rsvps.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const buildGuestWhatsAppUrl = (rsvp: RsvpRecord) => {
+    const digits = rsvp.phone_number.replace(/\D/g, "");
+    const message = `Namaste ${rsvp.guest_name}! Thank you for your response to ${hostNames}'s celebration.`;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  };
+
   return (
     <div className="space-y-6">
       {error && (
@@ -132,6 +167,42 @@ export function LiveRsvpsTab({
           <span>{error}</span>
         </div>
       )}
+
+      {/* Action Bar: Manual Guest Entry + Caterer Excel/CSV Export */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
+            Guest List &amp; Caterer Headcounts
+          </h2>
+          <p className="text-xs text-[#7A6258]">
+            Online responses and manual phone confirmations combine live below.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setManualModalKey((k) => k + 1);
+              setManualOpen(true);
+            }}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#5B1422] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#FCF8F1] shadow-sm transition-colors hover:bg-[#460E19]"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Add Guest Manually
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={filteredRsvps.length === 0}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-[#C88A2E]/45 bg-[#FFFDF8] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422] shadow-2xs transition-colors hover:bg-[#FCF5E8] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Download className="h-3.5 w-3.5 text-[#C88A2E]" />
+            Export Excel / CSV
+          </button>
+        </div>
+      </div>
 
       {/* Top Overview Strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -177,9 +248,9 @@ export function LiveRsvpsTab({
       {/* Exact Confirmed Headcount Per Sub-Event Cards */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
+          <h3 className="font-serif text-2xl font-semibold text-[#4A101C]">
             Confirmed Headcount by Ceremony
-          </h2>
+          </h3>
           {(categoryFilter !== "all" || sideFilter !== "all" || searchQuery) && (
             <span className="text-xs font-medium text-[#C88A2E]">
               Filtered view active
@@ -193,28 +264,32 @@ export function LiveRsvpsTab({
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {subEventStats.map(({ subEvent, confirmedGuests, attendingParties }) => (
-              <div
-                key={subEvent.id}
-                className="rounded-2xl border border-[#C88A2E]/35 bg-[#FFFDF8] p-5 shadow-xs"
-              >
-                <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[#C88A2E]">
-                  {subEvent.name}
-                </p>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="font-serif text-4xl font-semibold text-[#4A101C]">
-                    {confirmedGuests}
-                  </span>
-                  <span className="text-xs text-[#7A6258]">
-                    {confirmedGuests === 1 ? "guest" : "guests"}
-                  </span>
+            {subEventStats.map(
+              ({ subEvent, confirmedGuests, attendingParties }) => (
+                <div
+                  key={subEvent.id}
+                  className="rounded-2xl border border-[#C88A2E]/35 bg-[#FFFDF8] p-5 shadow-xs"
+                >
+                  <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[#C88A2E]">
+                    {subEvent.name}
+                  </p>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="font-serif text-4xl font-semibold text-[#4A101C]">
+                      {confirmedGuests}
+                    </span>
+                    <span className="text-xs text-[#7A6258]">
+                      {confirmedGuests === 1 ? "guest" : "guests"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-[#7A6258]">
+                    Across {attendingParties}{" "}
+                    {attendingParties === 1
+                      ? "confirmed party"
+                      : "confirmed parties"}
+                  </p>
                 </div>
-                <p className="mt-1 text-[11px] text-[#7A6258]">
-                  Across {attendingParties}{" "}
-                  {attendingParties === 1 ? "confirmed party" : "confirmed parties"}
-                </p>
-              </div>
-            ))}
+              )
+            )}
           </div>
         )}
       </section>
@@ -281,13 +356,13 @@ export function LiveRsvpsTab({
             </p>
             <p className="mt-1.5 text-sm text-[#69564E]">
               {rsvps.length === 0
-                ? "Share one of your Smart Category Links from Tab 3 to start receiving responses."
+                ? "Share your Smart Category Links from Tab 3, or click 'Add Guest Manually' to log elders who confirmed by phone."
                 : "Try resetting the Category, Side Tag, or search filter above."}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[740px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[780px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[#C88A2E]/25 bg-[#FCF8F1] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#69564E]">
                   <th className="px-4 py-3.5">Guest</th>
@@ -299,7 +374,7 @@ export function LiveRsvpsTab({
                     </th>
                   ))}
                   <th className="px-4 py-3.5">Meal &amp; Note</th>
-                  <th className="px-4 py-3.5 text-right">Action</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#C88A2E]/15">
@@ -313,6 +388,9 @@ export function LiveRsvpsTab({
                       se,
                     ])
                   );
+                  const hasRealPhone = !isManualPlaceholderPhone(
+                    rsvp.phone_number
+                  );
 
                   return (
                     <tr
@@ -320,12 +398,33 @@ export function LiveRsvpsTab({
                       className="transition-colors hover:bg-[#FCF8F1]/60"
                     >
                       <td className="px-4 py-4 align-top">
-                        <p className="font-semibold text-[#4A101C]">
-                          {rsvp.guest_name}
-                        </p>
-                        <p className="mt-0.5 font-mono text-xs text-[#7A6258]">
-                          {rsvp.phone_number}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="font-semibold text-[#4A101C]">
+                            {rsvp.guest_name}
+                          </p>
+                          {rsvp.is_manual && (
+                            <span className="rounded-full border border-[#C88A2E]/40 bg-[#FCF5E8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8E5B17]">
+                              Manual
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-[#7A6258]">
+                            {hasRealPhone ? rsvp.phone_number : "No phone"}
+                          </span>
+                          {hasRealPhone && (
+                            <a
+                              href={buildGuestWhatsAppUrl(rsvp)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Message ${rsvp.guest_name} on WhatsApp`}
+                              aria-label={`Message ${rsvp.guest_name} on WhatsApp`}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1F6E4A]/12 text-[#1F6E4A] transition-colors hover:bg-[#1F6E4A] hover:text-white"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-4 py-4 align-top">
@@ -425,6 +524,15 @@ export function LiveRsvpsTab({
           </div>
         )}
       </section>
+
+      <ManualGuestModal
+        key={manualModalKey}
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        eventId={eventId}
+        subEvents={subEvents}
+        categories={categories}
+      />
     </div>
   );
 }

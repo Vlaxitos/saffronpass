@@ -3,11 +3,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InviteExperience } from "@/components/invite/InviteExperience";
 import { getPublicInviteBySlugAndCode } from "@/lib/invite-server";
+import { getSiteUrl } from "@/lib/supabase/env";
+import { formatEventDate, getSafeExternalUrl } from "@/lib/utils";
 
 interface InvitePageProps {
   params: Promise<{ slug: string; code: string }>;
 }
 
+/**
+ * Rich Open Graph & WhatsApp preview metadata with ZERO private sub-event leakage.
+ * NEVER includes sub-event names (e.g., Haldi/Cocktail) or internal category names.
+ */
 export async function generateMetadata({
   params,
 }: InvitePageProps): Promise<Metadata> {
@@ -22,12 +28,55 @@ export async function generateMetadata({
     };
   }
 
+  const siteUrl = getSiteUrl();
+  const formattedDate = invite.event.event_date
+    ? formatEventDate(invite.event.event_date)
+    : null;
+
+  const fullTitle = `${invite.event.host_names} — ${invite.event.title} | SaffronPass`;
+  const safeDescription = formattedDate
+    ? `You are warmly invited to celebrate with us on ${formattedDate}. Tap to open your interactive invitation.`
+    : "You are warmly invited to celebrate with us. Tap to open your interactive invitation.";
+
+  const coverUrl = getSafeExternalUrl(invite.event.cover_image_url);
+  const ogFallbackUrl = new URL("/api/og", siteUrl);
+  ogFallbackUrl.searchParams.set("names", invite.event.host_names);
+  ogFallbackUrl.searchParams.set("title", invite.event.title);
+  if (formattedDate) {
+    ogFallbackUrl.searchParams.set("date", formattedDate);
+  }
+  ogFallbackUrl.searchParams.set("theme", String(invite.event.theme_id));
+
+  const ogImageUrl = coverUrl ?? ogFallbackUrl.toString();
+  const canonicalUrl = `${siteUrl}/${invite.event.slug}/${invite.category.code}`;
+
   return {
-    title: `${invite.event.host_names} — ${invite.event.title}`,
-    description:
-      invite.event.welcome_message?.slice(0, 155) ||
-      `You are warmly invited to ${invite.event.title}.`,
+    title: {
+      absolute: fullTitle,
+    },
+    description: safeDescription,
     robots: { index: false, follow: false },
+    openGraph: {
+      type: "website",
+      url: canonicalUrl,
+      siteName: "SaffronPass",
+      title: fullTitle,
+      description: safeDescription,
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${invite.event.host_names} — ${invite.event.title}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: fullTitle,
+      description: safeDescription,
+      images: [ogImageUrl],
+    },
   };
 }
 

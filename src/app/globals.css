@@ -68,6 +68,44 @@ body {
     radial-gradient(circle at 50% 25%, rgba(255, 253, 248, 0.95) 0%, rgba(244, 236, 222, 0.9) 75%);
 }
 
+/* Pastel Udaipur — warm peach/blush ivory & antique sandstone */
+.bg-pastel-udaipur {
+  background-color: #fdf4ee;
+  background-image:
+    radial-gradient(at 15% 12%, rgba(243, 198, 179, 0.28) 0px, transparent 54%),
+    radial-gradient(at 88% 84%, rgba(201, 154, 91, 0.14) 0px, transparent 52%);
+}
+
+.bg-udaipur-blush {
+  background-color: #f9e8df;
+  background-image:
+    radial-gradient(circle at 50% 28%, rgba(255, 248, 243, 0.92) 0%, rgba(243, 217, 203, 0.95) 75%);
+}
+
+/* South Indian Silk & Jasmine — Kanjeevaram emerald & jasmine cream */
+.bg-south-silk {
+  background-color: #fdf9f0;
+  background-image:
+    radial-gradient(at 14% 10%, rgba(212, 160, 36, 0.13) 0px, transparent 50%),
+    radial-gradient(at 86% 88%, rgba(15, 76, 58, 0.1) 0px, transparent 55%);
+}
+
+.bg-kanjeevaram-emerald {
+  background-color: #0b3c2e;
+  background-image:
+    radial-gradient(circle at 50% 25%, rgba(21, 98, 75, 0.65) 0%, rgba(10, 52, 39, 0.98) 70%),
+    linear-gradient(160deg, #0f4c3a 0%, #07291f 100%);
+}
+
+/* Dark Sangeet Glam — midnight obsidian/plum & champagne glow */
+.bg-dark-sangeet {
+  background-color: #160b18;
+  background-image:
+    radial-gradient(circle at 22% 16%, rgba(84, 34, 96, 0.42) 0%, transparent 52%),
+    radial-gradient(circle at 82% 82%, rgba(232, 198, 122, 0.11) 0%, transparent 48%),
+    linear-gradient(165deg, #1b0d1f 0%, #110714 100%);
+}
+
 /* Tactile antique gold wax seal gradient */
 .wax-seal-surface {
   background: radial-gradient(

@@ -4,7 +4,12 @@ import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { InviteExperience } from "@/components/invite/InviteExperience";
-import type { OpeningAnimationType, PublicInviteDTO, ThemeId } from "@/types/database";
+import type {
+  OpeningAnimationType,
+  ParticleEffectType,
+  PublicInviteDTO,
+  ThemeId,
+} from "@/types/database";
 
 interface DemoInviteModalProps {
   open: boolean;
@@ -47,14 +52,24 @@ const DEMO_CLOSE_FAMILY_EVENTS = [
 
 const DEMO_COLLEAGUES_EVENTS = [DEMO_CLOSE_FAMILY_EVENTS[2]];
 
+const DEMO_THEME_OPTIONS: { id: ThemeId; label: string }[] = [
+  { id: "royal_saffron", label: "Royal Saffron" },
+  { id: "minimal_ivory", label: "Minimal Ivory" },
+  { id: "pastel_udaipur", label: "Pastel Udaipur" },
+  { id: "south_indian_silk", label: "Silk & Jasmine" },
+  { id: "dark_sangeet_glam", label: "Dark Sangeet" },
+];
+
 export function DemoInviteModal({
   open,
   onClose,
   initialAnimation = "wax_seal",
 }: DemoInviteModalProps) {
-  const [animation, setAnimation] = useState<OpeningAnimationType>(initialAnimation);
+  const [animation, setAnimation] =
+    useState<OpeningAnimationType>(initialAnimation);
   const [theme, setTheme] = useState<ThemeId>("royal_saffron");
   const [circle, setCircle] = useState<"family" | "colleagues">("family");
+  const [particle, setParticle] = useState<ParticleEffectType>("marigold");
   const [instanceKey, setInstanceKey] = useState(0);
 
   useEffect(() => {
@@ -80,6 +95,12 @@ export function DemoInviteModal({
       opening_animation: animation,
       rsvp_enabled: true,
       plan: "wedding_pro",
+      cover_image_url: null,
+      gallery_images: [],
+      particle_effect: particle,
+      scratch_reveal_enabled: true,
+      music_track: "royal_shehnai",
+      custom_music_url: null,
     },
     category:
       circle === "family"
@@ -127,37 +148,32 @@ export function DemoInviteModal({
 
                 {/* Animation Switcher */}
                 <div className="inline-flex rounded-lg border border-[#E7C06B]/30 bg-[#2A070F] p-0.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimation("wax_seal");
-                      setInstanceKey((k) => k + 1);
-                    }}
-                    className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
-                      animation === "wax_seal"
-                        ? "bg-[#C88A2E] text-[#241405]"
-                        : "text-[#F4E4C1]/80 hover:text-white"
-                    }`}
-                  >
-                    Wax Seal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimation("palace_doors");
-                      setInstanceKey((k) => k + 1);
-                    }}
-                    className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
-                      animation === "palace_doors"
-                        ? "bg-[#C88A2E] text-[#241405]"
-                        : "text-[#F4E4C1]/80 hover:text-white"
-                    }`}
-                  >
-                    Palace Doors
-                  </button>
+                  {(
+                    [
+                      ["wax_seal", "Wax Seal"],
+                      ["palace_doors", "Palace Doors"],
+                      ["cinematic_scroll", "Cinematic"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        setAnimation(id);
+                        setInstanceKey((k) => k + 1);
+                      }}
+                      className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
+                        animation === id
+                          ? "bg-[#C88A2E] text-[#241405]"
+                          : "text-[#F4E4C1]/80 hover:text-white"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Guest Circle Privacy Switcher */}
+                {/* Guest Circle Switcher */}
                 <div className="inline-flex rounded-lg border border-[#E7C06B]/30 bg-[#2A070F] p-0.5 text-[11px]">
                   <button
                     type="button"
@@ -171,7 +187,7 @@ export function DemoInviteModal({
                         : "text-[#F4E4C1]/80 hover:text-white"
                     }`}
                   >
-                    Close Family (3 Events)
+                    Family (3 Events)
                   </button>
                   <button
                     type="button"
@@ -185,41 +201,30 @@ export function DemoInviteModal({
                         : "text-[#F4E4C1]/80 hover:text-white"
                     }`}
                   >
-                    Colleagues (Solo · 1 Event)
+                    Solo (1 Event)
                   </button>
                 </div>
 
-                {/* Theme Switcher */}
-                <div className="hidden rounded-lg border border-[#E7C06B]/30 bg-[#2A070F] p-0.5 text-[11px] sm:inline-flex">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTheme("royal_saffron");
-                      setInstanceKey((k) => k + 1);
-                    }}
-                    className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
-                      theme === "royal_saffron"
-                        ? "bg-[#C88A2E] text-[#241405]"
-                        : "text-[#F4E4C1]/80 hover:text-white"
-                    }`}
-                  >
-                    Royal Saffron
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTheme("minimal_ivory");
-                      setInstanceKey((k) => k + 1);
-                    }}
-                    className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
-                      theme === "minimal_ivory"
-                        ? "bg-[#C88A2E] text-[#241405]"
-                        : "text-[#F4E4C1]/80 hover:text-white"
-                    }`}
-                  >
-                    Minimal Ivory
-                  </button>
-                </div>
+                {/* Theme & Particles Compact Selectors */}
+                <select
+                  aria-label="Demo theme selector"
+                  value={theme}
+                  onChange={(e) => {
+                    const nextTheme = e.target.value as ThemeId;
+                    setTheme(nextTheme);
+                    if (nextTheme === "dark_sangeet_glam") setParticle("gold_sparkles");
+                    else if (nextTheme === "pastel_udaipur") setParticle("rose_petals");
+                    else setParticle("marigold");
+                    setInstanceKey((k) => k + 1);
+                  }}
+                  className="cursor-pointer rounded-lg border border-[#E7C06B]/35 bg-[#2A070F] px-2.5 py-1 text-[11px] font-medium text-[#F4E4C1] focus:outline-none"
+                >
+                  {DEMO_THEME_OPTIONS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button

@@ -1,7 +1,13 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidInviteCode, isValidSlug } from "@/lib/utils";
-import type { PublicInviteDTO, PublicSubEventDTO } from "@/types/database";
+import type {
+  MusicTrackType,
+  OpeningAnimationType,
+  ParticleEffectType,
+  PublicInviteDTO,
+  PublicSubEventDTO,
+} from "@/types/database";
 
 /**
  * Secure server-only lookup for public guest invitations.
@@ -31,7 +37,7 @@ export async function getPublicInviteBySlugAndCode(
   const { data: eventRow, error: eventError } = await admin
     .from("events")
     .select(
-      "id, slug, event_type, title, host_names, tradition_symbol, event_date, welcome_message, theme_id, opening_animation, rsvp_enabled, plan"
+      "id, slug, event_type, title, host_names, tradition_symbol, event_date, welcome_message, theme_id, opening_animation, rsvp_enabled, plan, cover_image_url, gallery_images, particle_effect, scratch_reveal_enabled, music_track, custom_music_url"
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -43,7 +49,9 @@ export async function getPublicInviteBySlugAndCode(
   // Step 2: Validate category code strictly scoped to this event
   const { data: categoryRow, error: categoryError } = await admin
     .from("invite_categories")
-    .select("id, code, etiquette_type, max_seats, allowed_sub_event_ids, greeting_prefix")
+    .select(
+      "id, code, etiquette_type, max_seats, allowed_sub_event_ids, greeting_prefix"
+    )
     .eq("event_id", eventRow.id)
     .eq("code", code)
     .maybeSingle();
@@ -73,6 +81,29 @@ export async function getPublicInviteBySlugAndCode(
     }
   }
 
+  const openingAnimation: OpeningAnimationType =
+    eventRow.opening_animation === "palace_doors" ||
+    eventRow.opening_animation === "cinematic_scroll"
+      ? eventRow.opening_animation
+      : "wax_seal";
+
+  const particleEffect: ParticleEffectType =
+    eventRow.particle_effect === "marigold" ||
+    eventRow.particle_effect === "rose_petals" ||
+    eventRow.particle_effect === "gold_sparkles"
+      ? eventRow.particle_effect
+      : "none";
+
+  const musicTrack: MusicTrackType =
+    eventRow.music_track === "royal_shehnai" ||
+    eventRow.music_track === "romantic_piano" ||
+    eventRow.music_track === "sitar_bliss" ||
+    eventRow.music_track === "celebration_chimes" ||
+    eventRow.music_track === "acoustic_warmth" ||
+    eventRow.music_track === "custom"
+      ? eventRow.music_track
+      : "none";
+
   return {
     event: {
       slug: eventRow.slug,
@@ -83,9 +114,17 @@ export async function getPublicInviteBySlugAndCode(
       event_date: eventRow.event_date,
       welcome_message: eventRow.welcome_message,
       theme_id: eventRow.theme_id,
-      opening_animation: eventRow.opening_animation,
+      opening_animation: openingAnimation,
       rsvp_enabled: eventRow.rsvp_enabled,
       plan: eventRow.plan,
+      cover_image_url: eventRow.cover_image_url ?? null,
+      gallery_images: Array.isArray(eventRow.gallery_images)
+        ? eventRow.gallery_images.filter(Boolean).slice(0, 4)
+        : [],
+      particle_effect: particleEffect,
+      scratch_reveal_enabled: Boolean(eventRow.scratch_reveal_enabled),
+      music_track: musicTrack,
+      custom_music_url: eventRow.custom_music_url ?? null,
     },
     category: {
       code: categoryRow.code,

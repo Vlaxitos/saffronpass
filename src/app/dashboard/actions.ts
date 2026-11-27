@@ -2,18 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { MAX_COHOSTS_PER_EVENT, MAX_GALLERY_IMAGES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildDefaultSlug,
   generateInviteCode,
   getSafeExternalUrl,
   isValidSlug,
+  normalizePhoneNumber,
   slugify,
 } from "@/lib/utils";
 import type {
   EtiquetteType,
   EventType,
+  MusicTrackType,
   OpeningAnimationType,
+  ParticleEffectType,
   SideTag,
   ThemeId,
   TraditionSymbolType,
@@ -68,10 +72,12 @@ export async function createEventAction(input: {
     return { ok: false, error: "Please enter host or couple names." };
   }
 
-  // Ensure profile exists for the host (safety net if signup happened before schema trigger)
+  // Ensure profile exists for the host
   await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
 
-  const rawSlug = input.slug?.trim() ? slugify(input.slug) : buildDefaultSlug(host_names || title);
+  const rawSlug = input.slug?.trim()
+    ? slugify(input.slug)
+    : buildDefaultSlug(host_names || title);
   const finalSlug = isValidSlug(rawSlug) ? rawSlug : buildDefaultSlug(title);
 
   const defaultWelcome =
@@ -124,6 +130,13 @@ export async function updateEventBasicsAction(input: {
   theme_id: ThemeId;
   opening_animation: OpeningAnimationType;
   rsvp_enabled: boolean;
+  // Phase 2 fields
+  cover_image_url: string | null;
+  gallery_images: string[];
+  particle_effect: ParticleEffectType;
+  scratch_reveal_enabled: boolean;
+  music_track: MusicTrackType;
+  custom_music_url: string | null;
 }): Promise<ActionResult> {
   const { supabase, user } = await requireAuthenticatedUser();
   if (!user) return { ok: false, error: "Unauthorized" };
@@ -136,15 +149,27 @@ export async function updateEventBasicsAction(input: {
     return { ok: false, error: "Event title must be at least 2 characters." };
   }
   if (host_names.length < 2) {
-    return { ok: false, error: "Host / couple names must be at least 2 characters." };
+    return {
+      ok: false,
+      error: "Host / couple names must be at least 2 characters.",
+    };
   }
   if (!isValidSlug(cleanSlug)) {
     return {
       ok: false,
-      error: "Slug must be 3–80 lowercase letters, numbers, or hyphens (e.g. aanya-kabir-2026).",
+      error:
+        "Slug must be 3–80 lowercase letters, numbers, or hyphens (e.g. aanya-kabir-2026).",
     };
   }
 
+  const safeCover = getSafeExternalUrl(input.cover_image_url);
+  const safeGallery = (input.gallery_images ?? [])
+    .map((u) => getSafeExternalUrl(u))
+    .filter((u): u is string => Boolean(u))
+    .slice(0, MAX_GALLERY_IMAGES);
+  const safeCustomMusic = getSafeExternalUrl(input.custom_music_url);
+
+  // RLS policy public.can_manage_event(id) authorizes owner + invited co-hosts
   const { error } = await supabase
     .from("events")
     .update({
@@ -158,15 +183,21 @@ export async function updateEventBasicsAction(input: {
       theme_id: input.theme_id,
       opening_animation: input.opening_animation,
       rsvp_enabled: input.rsvp_enabled,
+      cover_image_url: safeCover,
+      gallery_images: safeGallery,
+      particle_effect: input.particle_effect,
+      scratch_reveal_enabled: input.scratch_reveal_enabled,
+      music_track: input.music_track,
+      custom_music_url: safeCustomMusic,
     })
-    .eq("id", input.eventId)
-    .eq("host_id", user.id);
+    .eq("id", input.eventId);
 
   if (error) {
     if (error.code === "23505") {
       return {
         ok: false,
-        error: "This URL slug is already used by another celebration. Please choose a different slug.",
+        error:
+          "This URL slug is already used by another celebration. Please choose a different slug.",
       };
     }
     return { ok: false, error: error.message };
@@ -181,6 +212,7 @@ export async function deleteEventAction(eventId: string): Promise<ActionResult> 
   const { supabase, user } = await requireAuthenticatedUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
+  // Strictly primary owner only (enforced by both query filter and RLS)
   const { error } = await supabase
     .from("events")
     .delete()
@@ -269,7 +301,6 @@ export async function deleteSubEventAction(
   const { supabase, user } = await requireAuthenticatedUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
-  // Remove the sub-event ID from any invite_categories referencing it
   const { data: categories } = await supabase
     .from("invite_categories")
     .select("id, allowed_sub_event_ids")
@@ -375,7 +406,6 @@ export async function upsertCategoryAction(input: {
     return { ok: true, data };
   }
 
-  // Generate guaranteed-unique 8-char code for this event (retry on rare collision)
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateInviteCode(8);
     const { data, error } = await supabase
@@ -399,11 +429,17 @@ export async function upsertCategoryAction(input: {
     }
 
     if (error?.code !== "23505") {
-      return { ok: false, error: error?.message ?? "Failed to create category." };
+      return {
+        ok: false,
+        error: error?.message ?? "Failed to create category.",
+      };
     }
   }
 
-  return { ok: false, error: "Could not generate a unique code. Please try again." };
+  return {
+    ok: false,
+    error: "Could not generate a unique code. Please try again.",
+  };
 }
 
 export async function deleteCategoryAction(
@@ -426,8 +462,128 @@ export async function deleteCategoryAction(
 }
 
 // -----------------------------------------------------------------------------
-// RSVP MODERATION
+// MANUAL GUEST ENTRY & RSVP MODERATION
 // -----------------------------------------------------------------------------
+
+export async function addManualRsvpAction(input: {
+  event_id: string;
+  guest_name: string;
+  phone_number: string;
+  category_id: string | null;
+  overall_attending: boolean;
+  meal_preference: string;
+  note: string;
+  sub_events: { sub_event_id: string; attending: boolean; guest_count: number }[];
+}): Promise<ActionResult<{ id: string }>> {
+  const { supabase, user } = await requireAuthenticatedUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  const guestName = input.guest_name.trim();
+  if (guestName.length < 2) {
+    return { ok: false, error: "Please enter the guest's full name." };
+  }
+
+  const rawPhone = input.phone_number.trim();
+  const normalizedPhone = rawPhone
+    ? normalizePhoneNumber(rawPhone)
+    : `manual_${generateInviteCode(8)}`;
+
+  if (rawPhone && normalizedPhone.length < 7) {
+    return {
+      ok: false,
+      error: "Phone number looks too short—leave blank or enter a valid number.",
+    };
+  }
+
+  const cleanSubEvents = (input.sub_events ?? []).map((item) => {
+    const attending = input.overall_attending && Boolean(item.attending);
+    const guestCount = attending
+      ? Math.max(1, Math.min(Math.floor(Number(item.guest_count) || 1), 50))
+      : 0;
+    return {
+      sub_event_id: item.sub_event_id,
+      attending,
+      guest_count: guestCount,
+    };
+  });
+
+  const finalOverall =
+    cleanSubEvents.length > 0
+      ? input.overall_attending && cleanSubEvents.some((s) => s.attending)
+      : input.overall_attending;
+
+  // If a real phone number already exists on this event, update it cleanly rather than failing
+  const { data: existing } = rawPhone
+    ? await supabase
+        .from("rsvps")
+        .select("id")
+        .eq("event_id", input.event_id)
+        .eq("phone_number", normalizedPhone)
+        .maybeSingle()
+    : { data: null };
+
+  let rsvpId: string;
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .update({
+        category_id: input.category_id || null,
+        guest_name: guestName,
+        overall_attending: finalOverall,
+        meal_preference: finalOverall ? input.meal_preference.trim() || null : null,
+        note: input.note.trim() || null,
+        is_manual: true,
+      })
+      .eq("id", existing.id)
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "Could not update manual guest." };
+    }
+    rsvpId = data.id;
+  } else {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .insert({
+        event_id: input.event_id,
+        category_id: input.category_id || null,
+        guest_name: guestName,
+        phone_number: normalizedPhone,
+        overall_attending: finalOverall,
+        meal_preference: finalOverall ? input.meal_preference.trim() || null : null,
+        note: input.note.trim() || null,
+        is_manual: true,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "Could not add manual guest." };
+    }
+    rsvpId = data.id;
+  }
+
+  if (cleanSubEvents.length > 0) {
+    const { error: subErr } = await supabase.from("rsvp_sub_events").upsert(
+      cleanSubEvents.map((s) => ({
+        rsvp_id: rsvpId,
+        sub_event_id: s.sub_event_id,
+        attending: s.attending,
+        guest_count: s.guest_count,
+      })),
+      { onConflict: "rsvp_id,sub_event_id" }
+    );
+
+    if (subErr) {
+      return { ok: false, error: subErr.message };
+    }
+  }
+
+  revalidatePath(`/dashboard/events/${input.event_id}`);
+  return { ok: true, data: { id: rsvpId } };
+}
 
 export async function deleteRsvpAction(
   eventId: string,
@@ -440,6 +596,115 @@ export async function deleteRsvpAction(
     .from("rsvps")
     .delete()
     .eq("id", rsvpId)
+    .eq("event_id", eventId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true };
+}
+
+// -----------------------------------------------------------------------------
+// CO-HOST MANAGEMENT (PRIMARY HOST OWNER ONLY, MAX 3 PER EVENT)
+// -----------------------------------------------------------------------------
+
+export async function addCohostAction(input: {
+  event_id: string;
+  email: string;
+  side_tag: SideTag;
+}): Promise<ActionResult<{ id: string }>> {
+  const { supabase, user } = await requireAuthenticatedUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  const cleanEmail = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return { ok: false, error: "Please enter a valid email address." };
+  }
+
+  if (user.email && cleanEmail === user.email.toLowerCase()) {
+    return {
+      ok: false,
+      error: "You are already the primary host of this event.",
+    };
+  }
+
+  // Verify caller is the original event owner
+  const { data: ownedEvent } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", input.event_id)
+    .eq("host_id", user.id)
+    .maybeSingle();
+
+  if (!ownedEvent) {
+    return {
+      ok: false,
+      error: "Only the primary event host can invite Co-Hosts.",
+    };
+  }
+
+  const { count } = await supabase
+    .from("event_cohosts")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", input.event_id);
+
+  if ((count ?? 0) >= MAX_COHOSTS_PER_EVENT) {
+    return {
+      ok: false,
+      error: `You can invite up to ${MAX_COHOSTS_PER_EVENT} Co-Hosts per event.`,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("event_cohosts")
+    .insert({
+      event_id: input.event_id,
+      email: cleanEmail,
+      side_tag: input.side_tag,
+      invited_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        error: "That email is already invited as a Co-Host on this event.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/dashboard/events/${input.event_id}`);
+  return { ok: true, data: { id: data.id } };
+}
+
+export async function removeCohostAction(
+  eventId: string,
+  cohostId: string
+): Promise<ActionResult> {
+  const { supabase, user } = await requireAuthenticatedUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  const { data: ownedEvent } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .eq("host_id", user.id)
+    .maybeSingle();
+
+  if (!ownedEvent) {
+    return {
+      ok: false,
+      error: "Only the primary event host can remove Co-Hosts.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("event_cohosts")
+    .delete()
+    .eq("id", cohostId)
     .eq("event_id", eventId);
 
   if (error) return { ok: false, error: error.message };

@@ -5,6 +5,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { EventEditorClient } from "@/components/dashboard/EventEditorClient";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  EventCohostRecord,
   EventRecord,
   InviteCategoryRecord,
   RsvpRecord,
@@ -13,7 +14,8 @@ import type {
 
 export const metadata: Metadata = {
   title: "Event Editor",
-  description: "Customize your SaffronPass invitation, ceremonies, links, and live RSVPs.",
+  description:
+    "Customize your SaffronPass invitation, ceremonies, links, co-hosts, and live RSVPs.",
 };
 
 interface EventEditorPageProps {
@@ -44,6 +46,7 @@ async function EventEditorLoader({ params }: EventEditorPageProps) {
     redirect(`/login?next=/dashboard/events/${id}`);
   }
 
+  // RLS policy public.can_manage_event(id) authorizes both primary owner and invited Co-Hosts
   const [{ data: profile }, { data: eventRow, error: eventError }] =
     await Promise.all([
       supabase
@@ -51,36 +54,40 @@ async function EventEditorLoader({ params }: EventEditorPageProps) {
         .select("full_name, email")
         .eq("id", user.id)
         .maybeSingle(),
-      supabase
-        .from("events")
-        .select("*")
-        .eq("id", id)
-        .eq("host_id", user.id)
-        .maybeSingle(),
+      supabase.from("events").select("*").eq("id", id).maybeSingle(),
     ]);
 
   if (eventError || !eventRow) {
     notFound();
   }
 
-  const [{ data: subEvents }, { data: categories }, { data: rsvps }] =
-    await Promise.all([
-      supabase
-        .from("sub_events")
-        .select("*")
-        .eq("event_id", eventRow.id)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("invite_categories")
-        .select("*")
-        .eq("event_id", eventRow.id)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("rsvps")
-        .select("*, rsvp_sub_events(*)")
-        .eq("event_id", eventRow.id)
-        .order("updated_at", { ascending: false }),
-    ]);
+  const [
+    { data: subEvents },
+    { data: categories },
+    { data: rsvps },
+    { data: cohosts },
+  ] = await Promise.all([
+    supabase
+      .from("sub_events")
+      .select("*")
+      .eq("event_id", eventRow.id)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("invite_categories")
+      .select("*")
+      .eq("event_id", eventRow.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("rsvps")
+      .select("*, rsvp_sub_events(*)")
+      .eq("event_id", eventRow.id)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("event_cohosts")
+      .select("*")
+      .eq("event_id", eventRow.id)
+      .order("created_at", { ascending: true }),
+  ]);
 
   const userEmail = profile?.email || user.email || "";
   const userName =
@@ -89,14 +96,18 @@ async function EventEditorLoader({ params }: EventEditorPageProps) {
     userEmail.split("@")[0] ||
     "Host";
 
+  const isOwner = eventRow.host_id === user.id;
+
   return (
     <div className="flex min-h-screen flex-col bg-parchment">
       <DashboardHeader userName={userName} userEmail={userEmail} />
       <EventEditorClient
         event={eventRow as EventRecord}
+        isOwner={isOwner}
         subEvents={(subEvents as SubEventRecord[] | null) ?? []}
         categories={(categories as InviteCategoryRecord[] | null) ?? []}
         rsvps={(rsvps as RsvpRecord[] | null) ?? []}
+        cohosts={(cohosts as EventCohostRecord[] | null) ?? []}
       />
     </div>
   );

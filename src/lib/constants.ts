@@ -1,7 +1,9 @@
 import type {
   EtiquetteType,
   EventType,
+  MusicTrackType,
   OpeningAnimationType,
+  ParticleEffectType,
   PlanTier,
   SideTag,
   ThemeId,
@@ -9,6 +11,10 @@ import type {
 } from "@/types/database";
 
 export const FREE_PLAN_RSVP_LIMIT = 5;
+export const MAX_COHOSTS_PER_EVENT = 3;
+export const MAX_GALLERY_IMAGES = 4;
+export const MAX_COMPRESSED_IMAGE_BYTES = 300 * 1024;
+export const MAX_CUSTOM_AUDIO_BYTES = 3 * 1024 * 1024;
 
 export const EVENT_TYPES: { value: EventType; label: string; subtitle: string }[] = [
   { value: "wedding", label: "Wedding", subtitle: "Multi-day royal celebrations" },
@@ -47,6 +53,24 @@ export const THEMES: {
     description: "Luminous pearl cotton stationery with champagne bronze hairlines and serene elegance.",
     swatches: ["#FAF6EF", "#A68246", "#2B211E"],
   },
+  {
+    id: "pastel_udaipur",
+    name: "Pastel Udaipur",
+    description: "Warm peach-blush ivory canvas, rose sandstone tones, and antique gold palace borders.",
+    swatches: ["#FBECE4", "#C99A5B", "#7A2E3A"],
+  },
+  {
+    id: "south_indian_silk",
+    name: "South Indian Silk & Jasmine",
+    description: "Kanjeevaram emerald silk, temple-gold zari highlights, and fragrant warm jasmine cream.",
+    swatches: ["#0F4C3A", "#D4A024", "#FDF9F0"],
+  },
+  {
+    id: "dark_sangeet_glam",
+    name: "Dark Sangeet Glam",
+    description: "Midnight obsidian & royal plum backdrop with shimmering champagne gold typography.",
+    swatches: ["#160B18", "#E8C67A", "#33173B"],
+  },
 ];
 
 export const OPENING_ANIMATIONS: {
@@ -64,6 +88,36 @@ export const OPENING_ANIMATIONS: {
     name: "Royal Palace Doors",
     description: "Ornate symmetrical palace doors that sweep apart gracefully to reveal your invitation.",
   },
+  {
+    id: "cinematic_scroll",
+    name: "Cinematic Scroll Reveal",
+    description: "Full-screen couple hero showcase with dramatic gold typography gliding into animated cards.",
+  },
+];
+
+export const PARTICLE_EFFECTS: {
+  id: ParticleEffectType;
+  name: string;
+  description: string;
+}[] = [
+  { id: "none", name: "None", description: "Clean stillness without floating particles" },
+  { id: "marigold", name: "Marigold Petals", description: "Warm festive genda petals gently drifting" },
+  { id: "rose_petals", name: "Rose Petals", description: "Romantic crimson & blush petals floating" },
+  { id: "gold_sparkles", name: "Gold Sparkles", description: "Subtle shimmering golden light motes" },
+];
+
+export const MUSIC_TRACKS: {
+  id: MusicTrackType;
+  name: string;
+  description: string;
+}[] = [
+  { id: "none", name: "No Background Music", description: "Silent invitation experience" },
+  { id: "royal_shehnai", name: "Royal Shehnai", description: "Festive Indian pentatonic melody & soft drone" },
+  { id: "romantic_piano", name: "Romantic Piano", description: "Gentle romantic piano arpeggio loop" },
+  { id: "sitar_bliss", name: "Sitar Bliss", description: "Soft plucked raga string ambiance" },
+  { id: "celebration_chimes", name: "Celebration Chimes", description: "Golden wedding bells & warm ambient pad" },
+  { id: "acoustic_warmth", name: "Acoustic Warmth", description: "Warm acoustic plucked chord progression" },
+  { id: "custom", name: "Custom MP3 Upload", description: "Upload your own audio track (max 3MB)" },
 ];
 
 export const SIDE_TAGS: { value: SideTag; label: string }[] = [
@@ -125,4 +179,17 @@ export function getEventTypeLabel(type: EventType): string {
 
 export function getSideTagLabel(side: SideTag): string {
   return SIDE_TAGS.find((item) => item.value === side)?.label ?? "Common";
+}
+
+export function normalizeThemeId(raw: string | null | undefined): ThemeId {
+  switch (raw) {
+    case "minimal_ivory":
+    case "pastel_udaipur":
+    case "south_indian_silk":
+    case "dark_sangeet_glam":
+    case "royal_saffron":
+      return raw;
+    default:
+      return "royal_saffron";
+  }
 }
