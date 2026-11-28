@@ -3,7 +3,6 @@
 import React, { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   Check,
   Copy,
   Edit3,
@@ -15,6 +14,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   deleteCategoryAction,
   upsertCategoryAction,
@@ -62,7 +62,9 @@ export function CategoriesTab({
   const [sideTag, setSideTag] = useState<SideTag>("common");
   const [etiquetteType, setEtiquetteType] = useState<EtiquetteType>("family");
   const [maxSeats, setMaxSeats] = useState(4);
-  const [greetingPrefix, setGreetingPrefix] = useState("With Family (Saparivar)");
+  const [greetingPrefix, setGreetingPrefix] = useState(
+    "With Family (Saparivar)"
+  );
   const [allowedSubEventIds, setAllowedSubEventIds] = useState<string[]>(() =>
     subEvents.map((s) => s.id)
   );
@@ -70,7 +72,6 @@ export function CategoriesTab({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
     setEditingId(null);
@@ -80,7 +81,6 @@ export function CategoriesTab({
     setMaxSeats(4);
     setGreetingPrefix("With Family (Saparivar)");
     setAllowedSubEventIds(subEvents.map((s) => s.id));
-    setError(null);
   };
 
   const startEdit = (cat: InviteCategoryRecord) => {
@@ -91,7 +91,6 @@ export function CategoriesTab({
     setMaxSeats(cat.max_seats);
     setGreetingPrefix(cat.greeting_prefix ?? "");
     setAllowedSubEventIds(cat.allowed_sub_event_ids ?? []);
-    setError(null);
   };
 
   const handleEtiquetteChange = (next: EtiquetteType) => {
@@ -122,7 +121,6 @@ export function CategoriesTab({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setSaving(true);
 
     try {
@@ -143,28 +141,33 @@ export function CategoriesTab({
       });
 
       if (!res.ok) {
-        setError(res.error || "Could not save category link.");
+        toast.error(res.error || "Could not save category link.");
         return;
       }
 
+      toast.success(
+        editingId
+          ? "Category link updated."
+          : `Secret link created for "${name.trim()}".`
+      );
       resetForm();
       router.refresh();
     } catch {
-      setError("Network error while saving category.");
+      toast.error("Network error while saving category.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (categoryId: string) => {
+  const handleDelete = async (categoryId: string, catName: string) => {
     setDeletingId(categoryId);
-    setError(null);
     try {
       const res = await deleteCategoryAction(eventId, categoryId);
       if (!res.ok) {
-        setError(res.error || "Could not delete category.");
+        toast.error(res.error || "Could not delete category.");
       } else {
         if (editingId === categoryId) resetForm();
+        toast.success(`"${catName}" link deleted.`);
         router.refresh();
       }
     } finally {
@@ -191,9 +194,10 @@ export function CategoriesTab({
     try {
       await navigator.clipboard.writeText(fullUrl);
       setCopiedId(cat.id);
+      toast.success(`Copied secret link for "${cat.name}".`);
       window.setTimeout(() => setCopiedId(null), 2200);
     } catch {
-      // Fallback copy unavailable
+      toast.error("Could not access clipboard.");
     }
   };
 
@@ -202,39 +206,32 @@ export function CategoriesTab({
   return (
     <div className="grid gap-8 lg:grid-cols-12">
       {/* Create / Edit Category Form */}
-      <section className="rounded-2xl border border-[#C88A2E]/30 bg-[#FFFDF8] p-5 sm:p-6 lg:col-span-5">
+      <section className="gold-shimmer-border rounded-2xl bg-[#FFFDF9] p-5 sm:p-6 lg:col-span-5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
+          <h2 className="font-editorial text-2xl font-semibold text-[#470F1B]">
             {editingId ? "Edit Category Link" : "Create Smart Category Link"}
           </h2>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
-              className="cursor-pointer text-xs font-medium text-[#7A6258] hover:text-[#5B1422]"
+              className="min-h-[36px] cursor-pointer text-xs font-semibold text-[#796258] hover:text-[#54121F]"
             >
               Cancel Edit
             </button>
           )}
         </div>
 
-        <p className="mt-1 text-xs leading-relaxed text-[#7A6258]">
-          Each circle gets an unguessable 8-character secret code and sees ONLY
-          the ceremonies checked below.
+        <p className="mt-1 text-xs leading-relaxed text-[#796258]">
+          Each guest circle receives an unguessable 8-character secret code and
+          sees ONLY the ceremonies checked below.
         </p>
-
-        {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#8E1E31]/30 bg-[#8E1E31]/8 p-3 text-xs text-[#6B1222]">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
             <label
               htmlFor="cat-name"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+              className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
             >
               Guest Circle Name *
             </label>
@@ -245,13 +242,12 @@ export function CategoriesTab({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Close Family, Friends, Office Colleagues"
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
+              className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
             />
           </div>
 
-          {/* Side Tag */}
           <div>
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
+            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]">
               Side Tag
             </span>
             <div className="grid grid-cols-3 gap-2">
@@ -260,10 +256,10 @@ export function CategoriesTab({
                   key={tag.value}
                   type="button"
                   onClick={() => setSideTag(tag.value)}
-                  className={`cursor-pointer rounded-xl border px-2.5 py-2 text-xs font-semibold transition-colors ${
+                  className={`min-h-[42px] cursor-pointer rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${
                     sideTag === tag.value
-                      ? "border-[#5B1422] bg-[#5B1422] text-[#FCF8F1]"
-                      : "border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8]"
+                      ? "border-[#54121F] bg-[#54121F] text-[#FBF7F0]"
+                      : "border-[#B88433]/28 bg-white text-[#54121F] hover:bg-[#FBF3E5]"
                   }`}
                 >
                   {tag.label}
@@ -272,9 +268,8 @@ export function CategoriesTab({
             </div>
           </div>
 
-          {/* Etiquette & Seat Cap */}
           <div>
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
+            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]">
               Invitation Etiquette &amp; Seat Cap
             </span>
             <div className="space-y-2">
@@ -285,14 +280,14 @@ export function CategoriesTab({
                   onClick={() => handleEtiquetteChange(opt.value)}
                   className={`block w-full cursor-pointer rounded-xl border p-3 text-left transition-all ${
                     etiquetteType === opt.value
-                      ? "border-[#5B1422] bg-[#FCF5E8] ring-1 ring-[#5B1422]"
-                      : "border-[#C88A2E]/30 bg-white hover:bg-[#FCF8F1]"
+                      ? "border-[#54121F] bg-[#FBF3E5] ring-1 ring-[#54121F]"
+                      : "border-[#B88433]/28 bg-white hover:bg-[#FBF7F0]"
                   }`}
                 >
-                  <p className="text-xs font-semibold text-[#4A101C]">
+                  <p className="text-xs font-semibold text-[#470F1B]">
                     {opt.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-[#69564E]">
+                  <p className="mt-0.5 text-[11px] text-[#6C5950]">
                     {opt.description}
                   </p>
                 </button>
@@ -303,7 +298,7 @@ export function CategoriesTab({
               <div className="mt-3">
                 <label
                   htmlFor="cat-max-seats"
-                  className="mb-1 block text-xs font-semibold text-[#5B1422]"
+                  className="mb-1 block text-xs font-semibold text-[#54121F]"
                 >
                   Maximum Seats per Family
                 </label>
@@ -314,17 +309,16 @@ export function CategoriesTab({
                   max={30}
                   value={maxSeats}
                   onChange={(e) => setMaxSeats(Number(e.target.value))}
-                  className="w-28 rounded-xl border border-[#C88A2E]/35 bg-white px-3 py-2 text-sm font-semibold text-[#241815] focus:border-[#5B1422] focus:outline-none"
+                  className="min-h-[44px] w-28 rounded-xl border border-[#B88433]/32 bg-white px-3 py-2 text-sm font-semibold text-[#221714] focus:border-[#54121F] focus:outline-none"
                 />
               </div>
             )}
           </div>
 
-          {/* Greeting Prefix */}
           <div>
             <label
               htmlFor="cat-greeting"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+              className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
             >
               Greeting Label (Optional)
             </label>
@@ -334,14 +328,13 @@ export function CategoriesTab({
               value={greetingPrefix}
               onChange={(e) => setGreetingPrefix(e.target.value)}
               placeholder="e.g., With Family (Saparivar)"
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
+              className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
             />
           </div>
 
-          {/* Allowed Sub-Events Checkboxes */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]">
                 Allowed Sub-Events
               </span>
               {subEvents.length > 0 && (
@@ -351,15 +344,15 @@ export function CategoriesTab({
                     onClick={() =>
                       setAllowedSubEventIds(subEvents.map((s) => s.id))
                     }
-                    className="cursor-pointer font-medium text-[#5B1422] hover:underline"
+                    className="cursor-pointer font-semibold text-[#54121F] hover:underline"
                   >
                     Select All
                   </button>
-                  <span className="text-[#C88A2E]">·</span>
+                  <span className="text-[#B88433]">·</span>
                   <button
                     type="button"
                     onClick={() => setAllowedSubEventIds([])}
-                    className="cursor-pointer font-medium text-[#7A6258] hover:underline"
+                    className="cursor-pointer font-medium text-[#796258] hover:underline"
                   >
                     Clear
                   </button>
@@ -368,29 +361,29 @@ export function CategoriesTab({
             </div>
 
             {subEvents.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-[#C88A2E]/35 bg-[#FCF8F1] p-3 text-xs text-[#7A6258]">
-                Add ceremonies in Tab 2 first to toggle which functions appear on
-                this link.
+              <p className="rounded-xl border border-dashed border-[#B88433]/35 bg-[#FBF7F0] p-3 text-xs text-[#796258]">
+                Add ceremonies in Schedule first to control which functions are
+                visible on this link.
               </p>
             ) : (
-              <div className="space-y-2 rounded-xl border border-[#C88A2E]/25 bg-[#FCF8F1] p-3">
+              <div className="space-y-2 rounded-xl border border-[#B88433]/25 bg-[#FBF7F0] p-3">
                 {subEvents.map((se) => {
                   const checked = allowedSubEventIds.includes(se.id);
                   return (
                     <label
                       key={se.id}
-                      className="flex cursor-pointer items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs shadow-2xs"
+                      className="flex min-h-[42px] cursor-pointer items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs shadow-2xs"
                     >
-                      <span className="flex items-center gap-2.5 font-medium text-[#4A101C]">
+                      <span className="flex items-center gap-2.5 font-semibold text-[#470F1B]">
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleSubEvent(se.id)}
-                          className="h-4 w-4 accent-[#5B1422]"
+                          className="h-4 w-4 accent-[#54121F]"
                         />
                         {se.name}
                       </span>
-                      <span className="text-[11px] text-[#7A6258]">
+                      <span className="text-[11px] text-[#796258]">
                         {checked ? "Visible" : "Hidden"}
                       </span>
                     </label>
@@ -403,7 +396,7 @@ export function CategoriesTab({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#5B1422] px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#FCF8F1] shadow-sm transition-colors hover:bg-[#460E19] disabled:opacity-60"
+            className="inline-flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#54121F] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#FBF7F0] shadow-xs transition-colors hover:bg-[#3D0B16] disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
             {saving
@@ -418,24 +411,25 @@ export function CategoriesTab({
       {/* Active Category Links */}
       <section className="space-y-4 lg:col-span-7">
         <div>
-          <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
+          <h2 className="font-editorial text-2xl font-semibold text-[#470F1B]">
             Active Guest-Circle Links ({categories.length})
           </h2>
-          <p className="text-xs text-[#7A6258]">
-            Share each private URL directly on WhatsApp with that exact guest group.
+          <p className="text-xs text-[#796258]">
+            Share each private URL directly on WhatsApp with that exact guest
+            circle.
           </p>
         </div>
 
         {categories.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#C88A2E]/40 bg-[#FFFDF8] p-10 text-center">
-            <Link2 className="mx-auto h-8 w-8 text-[#C88A2E]" />
-            <p className="mt-3 font-serif text-xl font-semibold text-[#4A101C]">
+          <div className="rounded-2xl border border-dashed border-[#B88433]/40 bg-[#FFFDF9] p-10 text-center">
+            <Link2 className="mx-auto h-8 w-8 text-[#B88433]" />
+            <p className="mt-3 font-editorial text-xl font-semibold text-[#470F1B]">
               Create Your First Smart Link
             </p>
-            <p className="mt-1.5 text-sm text-[#69564E]">
-              For example, create &ldquo;Close Family&rdquo; (all ceremonies, up
-              to 5 seats) and &ldquo;Office Colleagues&rdquo; (Reception only,
-              Solo 1 seat).
+            <p className="mt-1.5 text-sm text-[#6C5950]">
+              Example: &ldquo;Close Family&rdquo; (all ceremonies, up to 5
+              seats) and &ldquo;Office Colleagues&rdquo; (Reception only, Solo 1
+              seat).
             </p>
           </div>
         ) : (
@@ -453,18 +447,18 @@ export function CategoriesTab({
               return (
                 <div
                   key={cat.id}
-                  className="rounded-2xl border border-[#C88A2E]/30 bg-[#FFFDF8] p-5 shadow-xs"
+                  className="gold-shimmer-border rounded-2xl bg-[#FFFDF9] p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-serif text-2xl font-semibold text-[#4A101C]">
+                        <h3 className="font-editorial text-2xl font-semibold text-[#470F1B]">
                           {cat.name}
                         </h3>
-                        <span className="rounded-full bg-[#FCF5E8] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8E5B17]">
+                        <span className="rounded-full bg-[#FBF3E5] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8E5B17]">
                           {getSideTagLabel(cat.side_tag)}
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-full border border-[#5B1422]/20 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5B1422]">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-[#54121F]/20 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#54121F]">
                           <Users className="h-3 w-3" />
                           {cat.etiquette_type === "solo"
                             ? "Solo · 1 Seat"
@@ -475,45 +469,44 @@ export function CategoriesTab({
                       </div>
 
                       {cat.greeting_prefix && (
-                        <p className="mt-1 text-xs italic text-[#7A6258]">
+                        <p className="mt-1 text-xs italic text-[#796258]">
                           Greeting: &ldquo;{cat.greeting_prefix}&rdquo;
                         </p>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => startEdit(cat)}
                         aria-label={`Edit ${cat.name}`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8]"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#B88433]/30 bg-white text-[#54121F] hover:bg-[#FBF3E5]"
                       >
-                        <Edit3 className="h-3.5 w-3.5" />
+                        <Edit3 className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         disabled={deletingId === cat.id}
-                        onClick={() => handleDelete(cat.id)}
+                        onClick={() => handleDelete(cat.id, cat.name)}
                         aria-label={`Delete ${cat.name}`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#8E1E31]/25 bg-white text-[#8E1E31] hover:bg-[#8E1E31]/8 disabled:opacity-40"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#8E1E31]/25 bg-white text-[#8E1E31] hover:bg-[#8E1E31]/8 disabled:opacity-40"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Visible & Hidden Ceremony Badges */}
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
                     {visibleEvents.map((se) => (
                       <span
                         key={se.id}
-                        className="rounded-md bg-[#1F6E4A]/10 px-2.5 py-1 text-[11px] font-medium text-[#175438]"
+                        className="rounded-md bg-[#1B6343]/10 px-2.5 py-1 text-[11px] font-medium text-[#154F35]"
                       >
                         {se.name}
                       </span>
                     ))}
                     {hiddenCount > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-[#241815]/6 px-2.5 py-1 text-[11px] font-medium text-[#7A6258]">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-[#221714]/6 px-2.5 py-1 text-[11px] font-medium text-[#796258]">
                         <EyeOff className="h-3 w-3" />
                         {hiddenCount} private{" "}
                         {hiddenCount === 1 ? "event" : "events"} hidden
@@ -526,9 +519,8 @@ export function CategoriesTab({
                     )}
                   </div>
 
-                  {/* Copyable Secret Link, Share on WhatsApp & Open Preview */}
-                  <div className="mt-4 space-y-2.5 rounded-xl border border-[#C88A2E]/25 bg-[#FCF8F1] p-3">
-                    <code className="block truncate font-mono text-xs text-[#4A101C]">
+                  <div className="mt-4 space-y-2.5 rounded-xl border border-[#B88433]/25 bg-[#FBF7F0] p-3">
+                    <code className="block truncate font-mono text-xs text-[#470F1B]">
                       {shareUrl}
                     </code>
 
@@ -536,7 +528,7 @@ export function CategoriesTab({
                       <button
                         type="button"
                         onClick={() => handleCopy(cat)}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#5B1422] px-3 py-1.5 text-xs font-semibold text-[#FCF8F1] transition-colors hover:bg-[#460E19]"
+                        className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-xl bg-[#54121F] px-3.5 py-1.5 text-xs font-semibold text-[#FBF7F0] transition-colors hover:bg-[#3D0B16]"
                       >
                         {copiedId === cat.id ? (
                           <>
@@ -555,7 +547,7 @@ export function CategoriesTab({
                         href={buildWhatsAppShareUrl(cat)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F6E4A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#175438]"
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-[#1B6343] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#144B32]"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         Share on WhatsApp
@@ -565,7 +557,7 @@ export function CategoriesTab({
                         href={`/${eventSlug}/${cat.code}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#5B1422]/25 bg-white px-3 py-1.5 text-xs font-semibold text-[#5B1422] transition-colors hover:bg-[#FCF5E8]"
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#54121F]/22 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#54121F] transition-colors hover:bg-[#FBF3E5]"
                       >
                         Open Preview
                         <ExternalLink className="h-3.5 w-3.5" />

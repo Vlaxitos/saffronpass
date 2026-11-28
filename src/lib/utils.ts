@@ -156,3 +156,35 @@ export function getSafeNextPath(next: string | null | undefined, fallback = "/da
   }
   return fallback;
 }
+
+/**
+ * Derives crisp royal monogram initials for wax seals and crests.
+ * Example: "Aarav & Meera" -> "A & M", "The Sharma Family" -> "S".
+ */
+export function extractMonogram(hostNames: string | null | undefined): string {
+  const cleaned = (hostNames ?? "").trim();
+  if (!cleaned) return "SP";
+
+  const pairMatch = cleaned.split(/\s*(?:&|\band\b|\+|weds)\s*/i).filter(Boolean);
+  if (pairMatch.length >= 2) {
+    const firstLetter = pairMatch[0].replace(/^[^a-zA-Z0-9]+/, "").charAt(0).toUpperCase();
+    const secondLetter = pairMatch[1].replace(/^[^a-zA-Z0-9]+/, "").charAt(0).toUpperCase();
+    if (firstLetter && secondLetter) {
+      return `${firstLetter} & ${secondLetter}`;
+    }
+  }
+
+  const words = cleaned
+    .replace(/^the\s+/i, "")
+    .split(/\s+/)
+    .filter((w) => /^[a-zA-Z0-9]/.test(w));
+
+  if (words.length >= 2) {
+    return `${words[0][0].toUpperCase()}${words[1][0].toUpperCase()}`;
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return "SP";
+}
+

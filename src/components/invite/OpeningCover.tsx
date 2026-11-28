@@ -3,9 +3,13 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { getInviteTheme, type InviteThemeTokens } from "@/lib/theme-styles";
-import { formatEventDate, getSafeExternalUrl } from "@/lib/utils";
+import {
+  extractMonogram,
+  formatEventDate,
+  getSafeExternalUrl,
+} from "@/lib/utils";
 import type { OpeningAnimationType, ThemeId } from "@/types/database";
 
 interface OpeningCoverProps {
@@ -16,10 +20,10 @@ interface OpeningCoverProps {
   eventDate?: string | null;
   greetingPrefix?: string | null;
   coverImageUrl?: string | null;
-  /** Called synchronously inside the user's tap/click handler so mobile browsers unlock audio. */
+  /** Invoked synchronously inside tap handler so iOS Safari / Android Chrome unlock MP3 playback. */
   onTapStart?: () => void;
   onOpened: () => void;
-  inModal?: boolean;
+  embedded?: boolean;
   topOffsetClass?: string;
 }
 
@@ -33,29 +37,31 @@ export function OpeningCover({
   coverImageUrl,
   onTapStart,
   onOpened,
-  inModal = false,
+  embedded = false,
   topOffsetClass = "",
 }: OpeningCoverProps) {
   const [stage, setStage] = useState<"sealed" | "opening">("sealed");
   const prefersReducedMotion = useReducedMotion();
   const theme = getInviteTheme(themeId);
+  const monogram = extractMonogram(hostNames);
 
   const handleOpen = () => {
     if (stage !== "sealed") return;
-    // Start audio synchronously inside the user tap gesture (required by iOS/Android browsers)
     onTapStart?.();
     setStage("opening");
     const delay = prefersReducedMotion
-      ? 200
+      ? 180
       : animationType === "cinematic_scroll"
-        ? 680
-        : 1050;
+        ? 640
+        : 1080;
     window.setTimeout(() => {
       onOpened();
     }, delay);
   };
 
-  const containerPosition = inModal ? "absolute inset-0" : "fixed inset-0";
+  const containerPosition = embedded
+    ? "absolute inset-0 h-full w-full"
+    : "fixed inset-0 h-[100dvh] w-full";
 
   return (
     <motion.div
@@ -63,37 +69,43 @@ export function OpeningCover({
       initial={{ opacity: 1 }}
       exit={{
         opacity: 0,
-        y: animationType === "cinematic_scroll" ? -36 : 0,
-        transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+        y: animationType === "cinematic_scroll" ? -28 : 0,
+        transition: { duration: 0.48, ease: [0.22, 1, 0.36, 1] },
       }}
     >
       {animationType === "palace_doors" ? (
         <PalaceDoorsCover
           theme={theme}
+          monogram={monogram}
           hostNames={hostNames}
           eventTitle={eventTitle}
           greetingPrefix={greetingPrefix}
           stage={stage}
+          embedded={embedded}
           onOpen={handleOpen}
         />
       ) : animationType === "cinematic_scroll" ? (
         <CinematicScrollCover
           theme={theme}
+          monogram={monogram}
           hostNames={hostNames}
           eventTitle={eventTitle}
           eventDate={eventDate}
           greetingPrefix={greetingPrefix}
           coverImageUrl={coverImageUrl}
           stage={stage}
+          embedded={embedded}
           onOpen={handleOpen}
         />
       ) : (
         <WaxSealEnvelopeCover
           theme={theme}
+          monogram={monogram}
           hostNames={hostNames}
           eventTitle={eventTitle}
           greetingPrefix={greetingPrefix}
           stage={stage}
+          embedded={embedded}
           onOpen={handleOpen}
         />
       )}
@@ -103,45 +115,50 @@ export function OpeningCover({
 
 interface InnerCoverProps {
   theme: InviteThemeTokens;
+  monogram: string;
   hostNames: string;
   eventTitle: string;
   eventDate?: string | null;
   greetingPrefix?: string | null;
   coverImageUrl?: string | null;
   stage: "sealed" | "opening";
+  embedded?: boolean;
   onOpen: () => void;
 }
 
 function WaxSealEnvelopeCover({
   theme,
+  monogram,
   hostNames,
   eventTitle,
   greetingPrefix,
   stage,
+  embedded,
   onOpen,
 }: InnerCoverProps) {
   const isOpening = stage === "opening";
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center px-5 py-10">
-      {/* Ambient royal glow behind envelope */}
+    <div className="texture-paper relative flex h-full w-full flex-col items-center justify-center px-5 py-6">
+      {/* Soft warm radial aura behind envelope */}
       <div
-        className="pointer-events-none absolute h-[420px] w-[420px] rounded-full blur-3xl"
+        aria-hidden="true"
+        className="pointer-events-none absolute h-[380px] w-[380px] rounded-full blur-3xl"
         style={{
           background: theme.useLightSeal
-            ? "radial-gradient(circle, rgba(200,138,46,0.16) 0%, transparent 70%)"
-            : "radial-gradient(circle, rgba(224,173,79,0.22) 0%, transparent 70%)",
+            ? "radial-gradient(circle, rgba(184,132,51,0.16) 0%, transparent 72%)"
+            : "radial-gradient(circle, rgba(226,189,114,0.22) 0%, transparent 72%)",
         }}
       />
 
-      {/* Greeting prefix above envelope */}
+      {/* Micro greeting label */}
       <motion.div
-        animate={{ opacity: isOpening ? 0 : 1, y: isOpening ? -14 : 0 }}
-        transition={{ duration: 0.45 }}
-        className="relative z-10 mb-6 text-center"
+        animate={{ opacity: isOpening ? 0 : 1, y: isOpening ? -10 : 0 }}
+        transition={{ duration: 0.4 }}
+        className="relative z-10 mb-5 text-center"
       >
         <p
-          className={`text-xs font-medium uppercase tracking-[0.28em] ${
+          className={`text-[10px] font-semibold uppercase tracking-[0.3em] ${
             theme.useLightSeal ? theme.accentText : "text-[#E7C06B]"
           }`}
         >
@@ -149,146 +166,190 @@ function WaxSealEnvelopeCover({
         </p>
       </motion.div>
 
-      {/* Interactive 3D Envelope */}
-      <div className="perspective-1200 relative z-10 w-full max-w-[420px]">
+      {/* 3D Tactile Luxury Envelope */}
+      <div
+        className={`perspective-1200 relative z-10 w-full ${
+          embedded ? "max-w-[320px]" : "max-w-[400px]"
+        }`}
+      >
         <motion.div
-          animate={isOpening ? { y: 18, scale: 1.03 } : { y: 0, scale: 1 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="relative mx-auto aspect-[4/3.1] w-full"
+          animate={isOpening ? { y: 20, scale: 1.03 } : { y: 0, scale: 1 }}
+          transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+          className="relative mx-auto aspect-[4/3.05] w-full"
         >
-          {/* Rising Inner Stationery Card */}
+          {/* Rising Engraved Inner Invitation Card */}
           <motion.div
-            initial={{ y: 0, opacity: 0.92 }}
-            animate={isOpening ? { y: -72, opacity: 1 } : { y: 0, opacity: 0.92 }}
-            transition={{ duration: 0.75, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-x-4 top-3 bottom-4 z-10 flex flex-col items-center justify-center rounded-xl border px-6 text-center shadow-lg ${theme.cardBorder} ${theme.cardBg}`}
+            initial={{ y: 0, opacity: 0.94 }}
+            animate={isOpening ? { y: -76, opacity: 1 } : { y: 0, opacity: 0.94 }}
+            transition={{
+              duration: 0.78,
+              delay: 0.24,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className={`texture-paper absolute inset-x-4 top-3 bottom-4 z-10 flex flex-col items-center justify-center rounded-xl border px-5 text-center shadow-lg ${theme.cardBorder} ${theme.cardBg}`}
           >
-            <div className={`h-px w-12 opacity-60 ${theme.dividerBg}`} />
-            <p className={`mt-3 font-serif text-2xl font-semibold sm:text-3xl ${theme.headingText}`}>
+            <span
+              className={`font-display text-xs tracking-[0.26em] uppercase ${theme.accentText}`}
+            >
+              {monogram}
+            </span>
+            <div className={`my-2 h-px w-10 opacity-45 ${theme.dividerBg}`} />
+            <p
+              className={`font-editorial text-xl font-semibold sm:text-2xl ${theme.headingText}`}
+            >
               {hostNames}
             </p>
-            <p className={`mt-1 text-xs uppercase tracking-[0.2em] ${theme.mutedText}`}>
+            <p
+              className={`mt-1 line-clamp-1 text-[10px] uppercase tracking-[0.22em] ${theme.mutedText}`}
+            >
               {eventTitle}
             </p>
           </motion.div>
 
-          {/* Envelope Back & Pocket Body */}
+          {/* Envelope Pocket Body with Paper Grain & Crease Shadows */}
           <div
-            className={`relative z-20 h-full w-full overflow-hidden rounded-2xl border shadow-2xl ${theme.envelopeBody}`}
+            className={`texture-paper relative z-20 h-full w-full overflow-hidden rounded-2xl border shadow-[0_24px_54px_rgba(0,0,0,0.34)] ${theme.envelopeBody}`}
           >
             <svg
-              viewBox="0 0 400 310"
+              viewBox="0 0 400 305"
               preserveAspectRatio="none"
               className="pointer-events-none absolute inset-0 h-full w-full"
               aria-hidden="true"
             >
-              <polygon points="0,0 200,165 0,310" fill={theme.envelopeSideLeft} />
-              <polygon points="400,0 200,165 400,310" fill={theme.envelopeSideRight} />
+              <polygon points="0,0 200,162 0,305" fill={theme.envelopeSideLeft} />
+              <polygon points="400,0 200,162 400,305" fill={theme.envelopeSideRight} />
               <polygon
-                points="0,310 200,148 400,310"
+                points="0,305 200,146 400,305"
                 fill={theme.envelopeFlapBottom}
                 stroke={theme.envelopeStroke}
-                strokeWidth="1.2"
+                strokeWidth="1.1"
               />
+              {/* Delicate inset couture gold frame */}
               <rect
-                x="10"
-                y="10"
-                width="380"
-                height="290"
-                rx="10"
+                x="11"
+                y="11"
+                width="378"
+                height="283"
+                rx="9"
                 fill="none"
                 stroke={theme.envelopeStroke}
-                strokeWidth="1"
+                strokeWidth="0.9"
+                opacity="0.72"
               />
             </svg>
 
-            <div className="absolute inset-x-6 bottom-6 z-20 text-center">
+            <div className="absolute inset-x-5 bottom-5 z-20 text-center">
               <h1
-                className={`font-serif text-2xl font-semibold tracking-[0.02em] sm:text-3xl ${theme.envelopeNameColor}`}
+                className={`font-editorial font-semibold tracking-[0.02em] ${
+                  embedded ? "text-xl" : "text-2xl sm:text-3xl"
+                } ${theme.envelopeNameColor}`}
               >
                 {hostNames}
               </h1>
               <p
-                className={`mt-1 line-clamp-1 text-[11px] uppercase tracking-[0.22em] ${theme.envelopeSubColor}`}
+                className={`mt-1 line-clamp-1 text-[10px] uppercase tracking-[0.24em] ${theme.envelopeSubColor}`}
               >
                 {eventTitle}
               </p>
             </div>
           </div>
 
-          {/* Animated Top Flap */}
+          {/* 3D Hinged Top Flap */}
           <motion.div
             style={{ transformOrigin: "top center" }}
             initial={{ rotateX: 0 }}
             animate={isOpening ? { rotateX: -168 } : { rotateX: 0 }}
-            transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.74, ease: [0.22, 1, 0.36, 1] }}
             className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[56%]"
           >
             <svg
-              viewBox="0 0 400 175"
+              viewBox="0 0 400 172"
               preserveAspectRatio="none"
-              className="h-full w-full drop-shadow-md"
+              className="h-full w-full drop-shadow-[0_10px_14px_rgba(0,0,0,0.22)]"
               aria-hidden="true"
             >
               <polygon
-                points="0,0 400,0 200,168"
+                points="0,0 400,0 200,166"
                 fill={theme.envelopeFlapTop}
                 stroke={theme.envelopeStroke}
-                strokeWidth="1.4"
+                strokeWidth="1.2"
               />
               <polyline
-                points="14,10 200,158 386,10"
+                points="16,10 200,155 384,10"
                 fill="none"
                 stroke={theme.envelopeStroke}
-                strokeWidth="0.9"
+                strokeWidth="0.8"
+                opacity="0.65"
               />
             </svg>
           </motion.div>
 
-          {/* Center Tactile Gold Wax Seal Button */}
+          {/* Multi-Layered Embossed Gold Wax Seal with Couple Monogram */}
           <AnimatePresence>
             {!isOpening && (
               <motion.button
                 type="button"
                 onClick={onOpen}
                 aria-label="Tap wax seal to open invitation"
-                initial={{ scale: 0.94, opacity: 0 }}
+                initial={{ scale: 0.92, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.18, opacity: 0, transition: { duration: 0.28 } }}
+                exit={{
+                  scale: 1.24,
+                  opacity: 0,
+                  filter: "brightness(1.45)",
+                  transition: { duration: 0.32 },
+                }}
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.94 }}
                 className="group absolute left-1/2 top-[51%] z-40 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E7C06B] focus-visible:ring-offset-4"
               >
+                {/* Breathing metallic halo */}
                 <motion.span
                   aria-hidden="true"
-                  animate={{ scale: [1, 1.16, 1], opacity: [0.45, 0.75, 0.45] }}
-                  transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-                  className="pointer-events-none absolute -inset-3 rounded-full bg-[#E0AD4F]/30 blur-md"
+                  animate={{
+                    scale: [1, 1.18, 1],
+                    opacity: [0.35, 0.72, 0.35],
+                  }}
+                  transition={{
+                    duration: 2.8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="pointer-events-none absolute -inset-3 rounded-full bg-[#E2BD72]/35 blur-md"
                 />
+
+                {/* Outer organic wax disc */}
                 <span
-                  className={`relative flex h-24 w-24 items-center justify-center rounded-full sm:h-[104px] sm:w-[104px] ${
-                    theme.useLightSeal ? "wax-seal-surface-ivory" : "wax-seal-surface"
+                  className={`relative flex items-center justify-center rounded-full ${
+                    embedded
+                      ? "h-[82px] w-[82px]"
+                      : "h-[94px] w-[94px] sm:h-[104px] sm:w-[104px]"
+                  } ${
+                    theme.useLightSeal
+                      ? "wax-seal-surface-ivory"
+                      : "wax-seal-surface"
                   }`}
                 >
-                  <span className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border border-[#5B3507]/35 bg-[#C98E2E]/20 sm:h-[82px] sm:w-[82px]">
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 36 36"
-                      fill="none"
-                      aria-hidden="true"
-                      className="text-[#4F2D06]"
+                  {/* Raised stamped inner wax rim */}
+                  <span
+                    className={`flex flex-col items-center justify-center rounded-full border border-[#5B3507]/38 bg-[#C88A2E]/18 shadow-inner ${
+                      embedded
+                        ? "h-[64px] w-[64px]"
+                        : "h-[74px] w-[74px] sm:h-[82px] sm:w-[82px]"
+                    }`}
+                  >
+                    <span
+                      className={`font-display font-semibold tracking-[0.06em] text-[#3F2204] ${
+                        monogram.length > 3
+                          ? embedded
+                            ? "text-[13px]"
+                            : "text-[15px] sm:text-base"
+                          : embedded
+                            ? "text-base"
+                            : "text-lg sm:text-xl"
+                      }`}
                     >
-                      <path
-                        d="M18 6.5C20.2 10.6 23.6 13.8 27 18C23.6 22.2 20.2 25.4 18 29.5C15.8 25.4 12.4 22.2 9 18C12.4 13.8 15.8 10.6 18 6.5Z"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx="18" cy="18" r="2.6" fill="currentColor" />
-                    </svg>
-                    <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-[#4A2905]">
-                      Open
+                      {monogram}
                     </span>
                   </span>
                 </span>
@@ -298,19 +359,20 @@ function WaxSealEnvelopeCover({
         </motion.div>
       </div>
 
+      {/* Micro-caption below envelope */}
       <motion.div
-        animate={{ opacity: isOpening ? 0 : 1, y: isOpening ? 12 : 0 }}
+        animate={{ opacity: isOpening ? 0 : 1, y: isOpening ? 10 : 0 }}
         transition={{ duration: 0.35 }}
-        className="relative z-10 mt-8 text-center"
+        className="relative z-10 mt-7 text-center"
       >
         <button
           type="button"
           onClick={onOpen}
-          className={`cursor-pointer text-xs font-medium uppercase tracking-[0.24em] transition-opacity hover:opacity-100 ${
-            theme.useLightSeal ? theme.mutedText : "text-[#F4E4C1]/85"
+          className={`min-h-[44px] cursor-pointer px-4 text-[10px] font-semibold uppercase tracking-[0.28em] transition-opacity hover:opacity-100 ${
+            theme.useLightSeal ? theme.mutedText : "text-[#F3E4C6]/85"
           }`}
         >
-          Tap the Wax Seal to Unfold
+          Tap Seal to Open
         </button>
       </motion.div>
     </div>
@@ -319,182 +381,226 @@ function WaxSealEnvelopeCover({
 
 function PalaceDoorsCover({
   theme,
+  monogram,
   hostNames,
   eventTitle,
   greetingPrefix,
   stage,
+  embedded,
   onOpen,
 }: InnerCoverProps) {
   const isOpening = stage === "opening";
 
   return (
     <div className="perspective-1200 relative flex h-full w-full items-center justify-center overflow-hidden">
+      {/* Soft warm golden bloom expanding behind parting doors */}
       <motion.div
-        initial={{ opacity: 0.2 }}
-        animate={{ opacity: isOpening ? 1 : 0.2 }}
-        transition={{ duration: 0.7 }}
+        initial={{ opacity: 0.15, scale: 0.85 }}
+        animate={
+          isOpening
+            ? { opacity: 1, scale: 1.2 }
+            : { opacity: 0.15, scale: 0.85 }
+        }
+        transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
         className="pointer-events-none absolute inset-0"
         style={{
           background: theme.isDark
-            ? "radial-gradient(circle at center, rgba(232, 198, 122, 0.38) 0%, rgba(22, 11, 24, 0.96) 65%)"
-            : "radial-gradient(circle at center, rgba(246, 224, 168, 0.85) 0%, rgba(252, 248, 241, 0.96) 65%)",
+            ? "radial-gradient(circle at center, rgba(226, 189, 114, 0.45) 0%, rgba(19, 9, 22, 0.96) 66%)"
+            : "radial-gradient(circle at center, rgba(248, 228, 178, 0.9) 0%, rgba(251, 247, 240, 0.98) 68%)",
         }}
       />
 
-      <div className="relative flex h-full w-full max-w-[680px] overflow-hidden shadow-2xl">
-        {/* LEFT DOOR */}
+      {/* Symmetrical Architectural Mughal/Jharokha Palace Gates */}
+      <div className="relative flex h-full w-full max-w-[640px] overflow-hidden shadow-2xl">
+        {/* LEFT ARCHITECTURAL DOOR */}
         <motion.div
           style={{ transformOrigin: "left center" }}
           initial={{ x: "0%", rotateY: 0 }}
-          animate={isOpening ? { x: "-94%", rotateY: 38 } : { x: "0%", rotateY: 0 }}
-          transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
-          className="relative h-full w-1/2 border-r border-[#C88A2E]/45"
+          animate={
+            isOpening ? { x: "-95%", rotateY: 42 } : { x: "0%", rotateY: 0 }
+          }
+          transition={{ duration: 0.98, ease: [0.22, 1, 0.36, 1] }}
+          className="texture-paper relative h-full w-1/2 border-r border-[#C88A2E]/40"
           aria-hidden="true"
         >
           <div
-            className="relative flex h-full w-full items-center justify-end pr-4 sm:pr-7"
+            className="relative flex h-full w-full items-center justify-end pr-3 sm:pr-6"
             style={{ backgroundColor: theme.doorFill }}
           >
             <svg
-              viewBox="0 0 220 540"
+              viewBox="0 0 220 560"
               preserveAspectRatio="none"
-              className="absolute inset-3 h-[calc(100%-24px)] w-[calc(100%-24px)]"
+              className="absolute inset-2.5 h-[calc(100%-20px)] w-[calc(100%-20px)]"
             >
+              {/* Outer hairline border */}
               <rect
                 x="4"
                 y="4"
                 width="212"
-                height="532"
-                rx="6"
+                height="552"
+                rx="4"
                 fill={theme.doorInner}
                 stroke={theme.doorFiligree}
-                strokeOpacity="0.45"
-                strokeWidth="1.5"
+                strokeOpacity="0.4"
+                strokeWidth="1.2"
               />
+              {/* Fine Jharokha pointed Mughal archway half */}
               <path
-                d="M24 510 V140 C24 85 95 58 195 36 V510 Z"
+                d="M22 532 V168 C22 128 52 104 82 88 C118 68 156 54 202 28 V532 Z"
                 fill="none"
                 stroke={theme.doorFiligree}
-                strokeOpacity="0.55"
-                strokeWidth="1.3"
+                strokeOpacity="0.6"
+                strokeWidth="1.25"
               />
               <path
-                d="M42 490 V155 C42 110 102 82 180 62 V490 Z"
+                d="M36 516 V178 C36 144 62 122 90 107 C122 90 156 76 190 54 V516 Z"
                 fill="none"
+                stroke={theme.doorFiligree}
+                strokeOpacity="0.32"
+                strokeWidth="0.9"
+              />
+              {/* Delicate geometric filigree diamond motifs */}
+              <path
+                d="M114 212 L138 242 L114 272 L90 242 Z M114 316 L138 346 L114 376 L90 346 Z"
+                fill="none"
+                stroke={theme.doorFiligree}
+                strokeOpacity="0.34"
+                strokeWidth="0.9"
+              />
+              <line
+                x1="22"
+                y1="440"
+                x2="202"
+                y2="440"
                 stroke={theme.doorFiligree}
                 strokeOpacity="0.28"
-                strokeWidth="1"
-                strokeDasharray="4 4"
-              />
-              <circle
-                cx="116"
-                cy="270"
-                r="32"
-                fill="none"
-                stroke={theme.doorFiligree}
-                strokeOpacity="0.38"
-                strokeWidth="1.1"
+                strokeWidth="0.9"
               />
             </svg>
+
+            {/* Slender antique gold ring handle */}
             <div className="relative z-10 flex flex-col items-center">
-              <div className="h-3.5 w-3.5 rounded-full border border-[#E7C06B] bg-[#C88A2E]" />
-              <div className="-mt-1 h-9 w-9 rounded-full border-[3px] border-[#D9A441] shadow-md" />
+              <div className="h-3 w-3 rounded-full border border-[#E7C06B] bg-[#C88A2E]" />
+              <div className="-mt-1 h-7 w-7 rounded-full border-[2.5px] border-[#D9A441] shadow-sm sm:h-8 sm:w-8" />
             </div>
           </div>
         </motion.div>
 
-        {/* RIGHT DOOR */}
+        {/* RIGHT ARCHITECTURAL DOOR */}
         <motion.div
           style={{ transformOrigin: "right center" }}
           initial={{ x: "0%", rotateY: 0 }}
-          animate={isOpening ? { x: "94%", rotateY: -38 } : { x: "0%", rotateY: 0 }}
-          transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
-          className="relative h-full w-1/2 border-l border-[#C88A2E]/45"
+          animate={
+            isOpening ? { x: "95%", rotateY: -42 } : { x: "0%", rotateY: 0 }
+          }
+          transition={{ duration: 0.98, ease: [0.22, 1, 0.36, 1] }}
+          className="texture-paper relative h-full w-1/2 border-l border-[#C88A2E]/40"
           aria-hidden="true"
         >
           <div
-            className="relative flex h-full w-full items-center justify-start pl-4 sm:pl-7"
+            className="relative flex h-full w-full items-center justify-start pl-3 sm:pl-6"
             style={{ backgroundColor: theme.doorFill }}
           >
             <svg
-              viewBox="0 0 220 540"
+              viewBox="0 0 220 560"
               preserveAspectRatio="none"
-              className="absolute inset-3 h-[calc(100%-24px)] w-[calc(100%-24px)]"
+              className="absolute inset-2.5 h-[calc(100%-20px)] w-[calc(100%-20px)]"
             >
               <rect
                 x="4"
                 y="4"
                 width="212"
-                height="532"
-                rx="6"
+                height="552"
+                rx="4"
                 fill={theme.doorInner}
                 stroke={theme.doorFiligree}
-                strokeOpacity="0.45"
-                strokeWidth="1.5"
+                strokeOpacity="0.4"
+                strokeWidth="1.2"
               />
               <path
-                d="M196 510 V140 C196 85 125 58 25 36 V510 Z"
+                d="M198 532 V168 C198 128 168 104 138 88 C102 68 64 54 18 28 V532 Z"
                 fill="none"
                 stroke={theme.doorFiligree}
-                strokeOpacity="0.55"
-                strokeWidth="1.3"
+                strokeOpacity="0.6"
+                strokeWidth="1.25"
               />
               <path
-                d="M178 490 V155 C178 110 118 82 40 62 V490 Z"
+                d="M184 516 V178 C184 144 158 122 130 107 C98 90 64 76 30 54 V516 Z"
                 fill="none"
+                stroke={theme.doorFiligree}
+                strokeOpacity="0.32"
+                strokeWidth="0.9"
+              />
+              <path
+                d="M106 212 L130 242 L106 272 L82 242 Z M106 316 L130 346 L106 376 L82 346 Z"
+                fill="none"
+                stroke={theme.doorFiligree}
+                strokeOpacity="0.34"
+                strokeWidth="0.9"
+              />
+              <line
+                x1="18"
+                y1="440"
+                x2="198"
+                y2="440"
                 stroke={theme.doorFiligree}
                 strokeOpacity="0.28"
-                strokeWidth="1"
-                strokeDasharray="4 4"
-              />
-              <circle
-                cx="104"
-                cy="270"
-                r="32"
-                fill="none"
-                stroke={theme.doorFiligree}
-                strokeOpacity="0.38"
-                strokeWidth="1.1"
+                strokeWidth="0.9"
               />
             </svg>
+
             <div className="relative z-10 flex flex-col items-center">
-              <div className="h-3.5 w-3.5 rounded-full border border-[#E7C06B] bg-[#C88A2E]" />
-              <div className="-mt-1 h-9 w-9 rounded-full border-[3px] border-[#D9A441] shadow-md" />
+              <div className="h-3 w-3 rounded-full border border-[#E7C06B] bg-[#C88A2E]" />
+              <div className="-mt-1 h-7 w-7 rounded-full border-[2.5px] border-[#D9A441] shadow-sm sm:h-8 sm:w-8" />
             </div>
           </div>
         </motion.div>
 
-        {/* Center Royal Crest Button */}
+        {/* Centered Golden Crest Medallion Overlay */}
         <AnimatePresence>
           {!isOpening && (
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.08, transition: { duration: 0.3 } }}
-              className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center"
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center px-5 text-center"
             >
               <button
                 type="button"
                 onClick={onOpen}
-                aria-label="Tap royal palace doors to enter invitation"
-                className={`group cursor-pointer rounded-3xl border px-8 py-9 shadow-2xl backdrop-blur-sm transition-transform duration-300 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E7C06B] sm:px-12 sm:py-11 ${theme.doorPlaque}`}
+                aria-label="Tap royal palace doors to open invitation"
+                className={`group cursor-pointer rounded-[28px] border shadow-2xl backdrop-blur-md transition-transform duration-300 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E7C06B] ${
+                  embedded ? "px-6 py-7" : "px-8 py-9 sm:px-11 sm:py-10"
+                } ${theme.doorPlaque}`}
               >
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#C88A2E]/60 bg-[#C88A2E]/12">
+                  <span className="font-display text-sm font-semibold tracking-[0.08em] text-[#E2BD72]">
+                    {monogram}
+                  </span>
+                </div>
+
                 <p
-                  className={`text-[11px] font-medium uppercase tracking-[0.28em] ${
+                  className={`mt-4 text-[10px] font-semibold uppercase tracking-[0.28em] ${
                     theme.useLightSeal ? theme.accentText : "text-[#E7C06B]"
                   }`}
                 >
                   {greetingPrefix?.trim() || "Royal Invitation"}
                 </p>
-                <h1 className="mt-3 font-serif text-3xl font-semibold tracking-[0.02em] sm:text-4xl">
+
+                <h1
+                  className={`mt-2.5 font-editorial font-semibold tracking-[0.01em] ${
+                    embedded ? "text-2xl" : "text-3xl sm:text-4xl"
+                  }`}
+                >
                   {hostNames}
                 </h1>
-                <p className="mt-1.5 text-xs uppercase tracking-[0.22em] opacity-80">
+                <p className="mt-1 text-[11px] uppercase tracking-[0.22em] opacity-80">
                   {eventTitle}
                 </p>
 
-                <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-[#C88A2E]/60 bg-[#C88A2E] px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[#2A1406] shadow-md transition-colors group-hover:bg-[#E0AD4F]">
-                  Tap to Enter Palace
+                <div className="mx-auto mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#D7A955]/60 bg-[#C88A2E] px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#221204] shadow-md transition-colors group-hover:bg-[#DDB05A]">
+                  <span>Enter Palace</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </div>
               </button>
             </motion.div>
@@ -507,25 +613,27 @@ function PalaceDoorsCover({
 
 function CinematicScrollCover({
   theme,
+  monogram,
   hostNames,
   eventTitle,
   eventDate,
   greetingPrefix,
   coverImageUrl,
   stage,
+  embedded,
   onOpen,
 }: InnerCoverProps) {
   const isOpening = stage === "opening";
   const safeCover = getSafeExternalUrl(coverImageUrl);
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#190910]">
-      {/* Full-bleed couple hero photo with subtle slow cinematic zoom */}
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#14070D]">
+      {/* Full-bleed magazine cover photo OR bespoke atmospheric crest canvas */}
       {safeCover ? (
         <motion.div
           initial={{ scale: 1.06 }}
-          animate={isOpening ? { scale: 1.15, opacity: 0.2 } : { scale: 1.0 }}
-          transition={{ duration: isOpening ? 0.75 : 8, ease: "easeOut" }}
+          animate={isOpening ? { scale: 1.14, opacity: 0.15 } : { scale: 1.0 }}
+          transition={{ duration: isOpening ? 0.7 : 9, ease: "easeOut" }}
           className="absolute inset-0"
         >
           <Image
@@ -536,59 +644,79 @@ function CinematicScrollCover({
             sizes="100vw"
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#16070E]/92 via-[#1D0A13]/52 to-[#16070E]/65" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#12060B]/94 via-[#17080F]/48 to-[#12060B]/70" />
         </motion.div>
       ) : (
-        <div className={`absolute inset-0 ${theme.coverBackdropClass}`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/35" />
+        <div className={`texture-paper absolute inset-0 ${theme.coverBackdropClass}`}>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
         </div>
       )}
 
-      {/* Subtle gold architectural frame */}
+      {/* Subtle architectural magazine border */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-4 rounded-3xl border border-[#E7C06B]/30 sm:inset-8"
+        className={`pointer-events-none absolute rounded-3xl border border-[#E7C06B]/28 ${
+          embedded ? "inset-3" : "inset-4 sm:inset-8"
+        }`}
       />
 
-      {/* Dramatic Gold Editorial Hero Content */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={isOpening ? { opacity: 0, y: -32 } : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-20 mx-auto max-w-xl px-7 text-center text-[#FCF8F1]"
+        initial={{ opacity: 0, y: 18 }}
+        animate={isOpening ? { opacity: 0, y: -26 } : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-20 mx-auto flex max-w-lg flex-col items-center px-6 text-center text-[#FCF8F1]"
       >
-        <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#E7C06B]">
-          <Sparkles className="h-3.5 w-3.5" />
+        {/* Bespoke Cinzel monogram crest when no cover photo is uploaded */}
+        {!safeCover && (
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[#E7C06B]/50 bg-[#E7C06B]/10 backdrop-blur-xs">
+            <span className="font-display text-base font-semibold tracking-[0.12em] text-[#F2D593]">
+              {monogram}
+            </span>
+          </div>
+        )}
+
+        <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-[#E7C06B]">
+          <Sparkles className="h-3 w-3" />
           <span>{greetingPrefix?.trim() || "You Are Warmly Invited"}</span>
         </p>
 
-        <h1 className="mt-5 font-serif text-5xl font-semibold leading-[1.06] tracking-[0.01em] text-[#FFFDF7] drop-shadow-sm sm:text-6xl">
+        <h1
+          className={`mt-4 font-editorial font-semibold leading-[1.04] tracking-[0.01em] text-[#FFFDF7] ${
+            embedded
+              ? "text-4xl"
+              : "text-[clamp(2.5rem,7vw,4.2rem)]"
+          }`}
+        >
           {hostNames}
         </h1>
 
-        <p className="mt-3 font-serif text-xl italic text-[#F4E4C1]/90 sm:text-2xl">
+        <p
+          className={`mt-2.5 font-editorial italic text-[#F3E4C6]/90 ${
+            embedded ? "text-lg" : "text-xl sm:text-2xl"
+          }`}
+        >
           {eventTitle}
         </p>
 
         {eventDate && (
-          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.26em] text-[#E7C06B]">
+          <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.26em] text-[#E7C06B]">
             {formatEventDate(eventDate)}
           </p>
         )}
 
-        <div className="mx-auto my-7 flex items-center justify-center gap-3">
-          <span className="h-px w-12 bg-[#E7C06B]/50" />
+        <div className="mx-auto my-6 flex items-center justify-center gap-3">
+          <span className="h-px w-10 bg-[#E7C06B]/45" />
           <span className="h-1.5 w-1.5 rotate-45 bg-[#E7C06B]" />
-          <span className="h-px w-12 bg-[#E7C06B]/50" />
+          <span className="h-px w-10 bg-[#E7C06B]/45" />
         </div>
 
         <button
           type="button"
           onClick={onOpen}
-          className="group inline-flex cursor-pointer items-center gap-2.5 rounded-full border border-[#E7C06B]/70 bg-[#C88A2E] px-7 py-3.5 text-xs font-semibold uppercase tracking-[0.22em] text-[#221104] shadow-[0_12px_32px_rgba(0,0,0,0.45)] transition-all hover:scale-[1.03] hover:bg-[#E0AD4F] active:scale-[0.98]"
+          className="group inline-flex min-h-[48px] cursor-pointer items-center gap-2 rounded-full border border-[#E7C06B]/70 bg-[#C88A2E] px-7 py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#221204] shadow-[0_14px_34px_rgba(0,0,0,0.45)] transition-all hover:scale-[1.03] hover:bg-[#DDB05A] active:scale-[0.98]"
         >
-          <span>Begin Celebration</span>
-          <ChevronDown className="h-4 w-4 transition-transform group-hover:translate-y-0.5" />
+          <span>Enter Celebration</span>
+          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </motion.div>
     </div>

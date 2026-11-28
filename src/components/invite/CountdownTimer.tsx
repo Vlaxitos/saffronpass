@@ -58,40 +58,20 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
 
   if (!eventDate) return null;
 
-  if (!remaining) {
-    return (
-      <div className="mx-auto mt-6 grid max-w-sm grid-cols-4 gap-2.5 sm:gap-3">
-        {["Days", "Hours", "Mins", "Secs"].map((label) => (
-          <div
-            key={label}
-            className={`rounded-xl border px-2 py-3 text-center ${theme.countdownCell}`}
-          >
-            <div className={`font-serif text-2xl font-semibold sm:text-3xl ${theme.countdownValue}`}>
-              --
-            </div>
-            <div className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] ${theme.mutedText}`}>
-              {label}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (remaining.status === "today") {
+  if (remaining?.status === "today") {
     return (
       <div
-        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.22em] ${theme.pillBg} ${theme.pillText}`}
+        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] ${theme.pillBg} ${theme.pillText}`}
       >
         Celebrating Today
       </div>
     );
   }
 
-  if (remaining.status === "past") {
+  if (remaining?.status === "past") {
     return (
       <div
-        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-xs font-medium uppercase tracking-[0.2em] ${theme.pillBg} ${theme.mutedText}`}
+        className={`mx-auto mt-6 inline-flex items-center rounded-full border px-5 py-2 text-[10px] font-medium uppercase tracking-[0.22em] ${theme.pillBg} ${theme.mutedText}`}
       >
         Celebrated with Joy
       </div>
@@ -99,29 +79,28 @@ export function CountdownTimer({ eventDate, themeId }: CountdownTimerProps) {
   }
 
   const cells = [
-    { value: remaining.days, label: "Days" },
-    { value: remaining.hours, label: "Hours" },
-    { value: remaining.minutes, label: "Mins" },
-    { value: remaining.seconds, label: "Secs" },
+    { value: remaining ? String(remaining.days).padStart(2, "0") : "--", label: "Days" },
+    { value: remaining ? String(remaining.hours).padStart(2, "0") : "--", label: "Hours" },
+    { value: remaining ? String(remaining.minutes).padStart(2, "0") : "--", label: "Mins" },
+    { value: remaining ? String(remaining.seconds).padStart(2, "0") : "--", label: "Secs" },
   ];
 
   return (
     <div
-      className="mx-auto mt-6 grid max-w-sm grid-cols-4 gap-2.5 sm:gap-3"
+      className={`mx-auto mt-6 grid max-w-[340px] grid-cols-4 divide-x rounded-2xl border py-3.5 ${theme.countdownCell} ${
+        theme.isDark ? "divide-[#E2BD72]/20" : "divide-[#B88433]/22"
+      }`}
       aria-label="Countdown to the main celebration"
     >
       {cells.map((cell) => (
-        <div
-          key={cell.label}
-          className={`rounded-xl border px-2 py-3 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)] ${theme.countdownCell}`}
-        >
+        <div key={cell.label} className="px-1.5 text-center">
           <div
-            className={`font-serif text-2xl font-semibold tabular-nums sm:text-3xl ${theme.countdownValue}`}
+            className={`font-editorial text-2xl font-semibold tabular-nums leading-none sm:text-[28px] ${theme.countdownValue}`}
           >
-            {String(cell.value).padStart(2, "0")}
+            {cell.value}
           </div>
           <div
-            className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] ${theme.mutedText}`}
+            className={`mt-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] ${theme.mutedText}`}
           >
             {cell.label}
           </div>

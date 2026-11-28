@@ -20,7 +20,7 @@ import { ParticleOverlay } from "@/components/invite/ParticleOverlay";
 import { RsvpForm } from "@/components/invite/RsvpForm";
 import { ScratchRevealDate } from "@/components/invite/ScratchRevealDate";
 import { TraditionSymbol } from "@/components/invite/TraditionSymbol";
-import { SaffronAudioEngine } from "@/lib/audio-engine";
+import { resolveMusicTrackUrl, SaffronAudioPlayer } from "@/lib/audioPlayer";
 import { getInviteTheme } from "@/lib/theme-styles";
 import { formatEventDate, getSafeExternalUrl } from "@/lib/utils";
 import type { PublicInviteDTO } from "@/types/database";
@@ -28,26 +28,30 @@ import type { PublicInviteDTO } from "@/types/database";
 interface InviteExperienceProps {
   invite: PublicInviteDTO;
   demoMode?: boolean;
-  inModal?: boolean;
+  /** When true, renders strictly inside a studio/editor phone viewport without fixed full-window overlays. */
+  embedded?: boolean;
+  /** Optional override to start already opened (e.g., when host edits fields live in desktop split-screen). */
+  initialOpened?: boolean;
 }
 
 export function InviteExperience({
   invite,
   demoMode = false,
-  inModal = false,
+  embedded = false,
+  initialOpened = false,
 }: InviteExperienceProps) {
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(initialOpened);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const audioRef = useRef<SaffronAudioEngine | null>(null);
+  const audioRef = useRef<SaffronAudioPlayer | null>(null);
 
   const { event, category, sub_events } = invite;
   const isFreePlan = event.plan === "free" && !demoMode;
   const theme = getInviteTheme(event.theme_id);
 
-  const hasMusic =
-    event.music_track !== "none" &&
-    (event.music_track !== "custom" || Boolean(event.custom_music_url));
+  const hasMusic = Boolean(
+    resolveMusicTrackUrl(event.music_track, event.custom_music_url)
+  );
 
   const safeCoverUrl = getSafeExternalUrl(event.cover_image_url);
   const safeGalleryUrls = (event.gallery_images ?? [])
@@ -56,44 +60,48 @@ export function InviteExperience({
     .slice(0, 4);
 
   useEffect(() => {
-    const engine = new SaffronAudioEngine();
-    engine.configure(event.music_track, event.custom_music_url);
-    audioRef.current = engine;
+    const player = new SaffronAudioPlayer((playing) => {
+      setMusicPlaying(playing);
+    });
+    player.configure(event.music_track, event.custom_music_url);
+    audioRef.current = player;
 
     return () => {
-      engine.dispose();
+      player.dispose();
       audioRef.current = null;
     };
   }, [event.music_track, event.custom_music_url]);
 
   const handleOpeningTapAudio = () => {
     if (!hasMusic || !audioRef.current) return;
-    const started = audioRef.current.start();
-    setMusicPlaying(started);
+    audioRef.current.start();
   };
 
   const handleToggleMusic = () => {
     if (!audioRef.current) return;
-    const nowPlaying = audioRef.current.toggle();
-    setMusicPlaying(nowPlaying);
+    audioRef.current.toggle();
   };
 
-  return (
-    <div className={`relative min-h-screen w-full ${theme.pageBg}`}>
+  const inviteInnerContent = (
+    <div
+      className={`texture-paper relative w-full ${
+        embedded ? "min-h-full" : "min-h-[100dvh] md:min-h-0"
+      } ${theme.pageBg}`}
+    >
       {/* Non-removable Free Plan Preview Lock Banner */}
       {isFreePlan && (
-        <div className="sticky top-0 z-50 flex items-center justify-center gap-2 border-b border-[#E7C06B]/40 bg-[#3D0C16] px-4 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F6DC9C] shadow-sm">
+        <div className="sticky top-0 z-50 flex items-center justify-center gap-2 border-b border-[#E7C06B]/35 bg-[#360A13] px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F6DC9C] shadow-sm">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E7C06B]" />
           <span>PREVIEW MODE — Free Plan (Up to 5 Test RSVPs)</span>
         </div>
       )}
 
-      {/* Lightweight Falling Particles Effect (Marigold / Rose Petals / Gold Sparkles) */}
+      {/* Lightweight Falling Particles Overlay */}
       {opened && event.particle_effect !== "none" && (
-        <ParticleOverlay effect={event.particle_effect} inModal={inModal} />
+        <ParticleOverlay effect={event.particle_effect} inModal={embedded} />
       )}
 
-      {/* Interactive Full-Screen Opening Animation */}
+      {/* Zero-Scroll 3D Tactile Opening Cover */}
       <AnimatePresence>
         {!opened && (
           <OpeningCover
@@ -106,50 +114,52 @@ export function InviteExperience({
             coverImageUrl={safeCoverUrl}
             onTapStart={handleOpeningTapAudio}
             onOpened={() => setOpened(true)}
-            inModal={inModal}
-            topOffsetClass={isFreePlan ? "top-[38px]" : ""}
+            embedded={embedded}
+            topOffsetClass={isFreePlan && !embedded ? "top-[37px]" : ""}
           />
         )}
       </AnimatePresence>
 
-      {/* Invitation Stationery Body */}
+      {/* Invitation Keepsake Stationery Content */}
       <motion.main
-        initial={{ opacity: 0, y: 18 }}
-        animate={opened ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
-        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-14"
+        initial={{ opacity: initialOpened ? 1 : 0, y: initialOpened ? 0 : 16 }}
+        animate={opened ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+        transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+        className={`relative z-10 mx-auto w-full ${
+          embedded ? "px-4 py-6" : "px-4 py-7 sm:px-7 sm:py-10"
+        }`}
       >
-        {/* Heritage Invitation Card Frame */}
+        {/* Heritage Couture Stationery Card */}
         <article
-          className={`relative overflow-hidden rounded-[28px] border px-6 py-10 text-center shadow-[0_18px_55px_rgba(0,0,0,0.12)] sm:px-12 sm:py-14 ${theme.cardBorder} ${theme.cardBg}`}
+          className={`texture-paper relative overflow-hidden rounded-[26px] border px-5 py-9 text-center shadow-[0_14px_44px_rgba(0,0,0,0.1)] sm:px-9 sm:py-12 ${theme.cardBorder} ${theme.cardBg}`}
         >
-          {/* Decorative Corner Gold Hairlines */}
+          {/* Inset 1px antique gold architectural hairline frame */}
           <div
             aria-hidden="true"
-            className={`pointer-events-none absolute inset-3.5 rounded-[20px] border ${theme.innerBorder}`}
+            className={`pointer-events-none absolute inset-3 rounded-[19px] border ${theme.innerBorder}`}
           />
 
-          {/* Subtle Jasmine / Temple Zari Ornament for South Indian Silk Theme */}
+          {/* Subtle Jasmine / Temple Zari Ornament for South Indian Silk */}
           {theme.id === "south_indian_silk" && (
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-8 top-4 flex items-center justify-center gap-2 opacity-60"
+              className="pointer-events-none absolute inset-x-8 top-4 flex items-center justify-center gap-2 opacity-65"
             >
-              <span className="h-px flex-1 bg-[#D4A024]/60" />
-              <span className="h-2 w-2 rounded-full bg-[#D4A024]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[#0F4C3A]" />
-              <span className="h-2 w-2 rounded-full bg-[#D4A024]" />
-              <span className="h-px flex-1 bg-[#D4A024]/60" />
+              <span className="h-px flex-1 bg-[#CE9C26]/55" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#CE9C26]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#0E4635]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#CE9C26]" />
+              <span className="h-px flex-1 bg-[#CE9C26]/55" />
             </div>
           )}
 
           <div className="relative z-10">
             {/* Tradition Symbol */}
             {event.tradition_symbol !== "none" && (
-              <div className="mb-5 flex justify-center">
+              <div className="mb-4 flex justify-center">
                 <TraditionSymbol
                   symbol={event.tradition_symbol}
-                  size={64}
+                  size={embedded ? 50 : 60}
                   className={theme.accentText}
                 />
               </div>
@@ -158,7 +168,7 @@ export function InviteExperience({
             {/* Category Greeting Prefix */}
             {category.greeting_prefix && (
               <p
-                className={`text-xs font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
+                className={`text-[10px] font-semibold uppercase tracking-[0.28em] ${theme.accentText}`}
               >
                 {category.greeting_prefix}
               </p>
@@ -166,41 +176,47 @@ export function InviteExperience({
 
             {/* Host / Couple Names */}
             <h1
-              className={`mt-3 font-serif text-4xl font-semibold leading-[1.12] tracking-[0.01em] sm:text-5xl ${theme.headingText}`}
+              className={`mt-3 font-editorial font-semibold leading-[1.08] tracking-[0.01em] ${
+                embedded
+                  ? "text-3xl"
+                  : "text-[clamp(2.25rem,6vw,3.1rem)]"
+              } ${theme.headingText}`}
             >
               {event.host_names}
             </h1>
 
             {/* Event Title */}
             <p
-              className={`mt-2.5 font-serif text-xl italic sm:text-2xl ${theme.subHeadingText}`}
+              className={`mt-2 font-editorial italic ${
+                embedded ? "text-lg" : "text-xl sm:text-2xl"
+              } ${theme.subHeadingText}`}
             >
               {event.title}
             </p>
 
-            {/* Optional Uploaded Cover Portrait inside the Stationery Card */}
+            {/* Optional Uploaded Cover Portrait */}
             {safeCoverUrl && (
               <div
-                className={`relative mx-auto mt-7 aspect-[16/10] w-full max-w-lg overflow-hidden rounded-2xl border shadow-md ${theme.cardBorder}`}
+                className={`relative mx-auto mt-6 aspect-[16/10] w-full overflow-hidden rounded-2xl border shadow-md ${theme.cardBorder}`}
               >
                 <Image
                   src={safeCoverUrl}
                   alt={`${event.host_names} portrait`}
                   fill
-                  sizes="(max-width: 768px) 92vw, 540px"
+                  sizes="(max-width: 768px) 92vw, 460px"
                   className="object-cover"
                 />
               </div>
             )}
 
-            {/* Hairline Ornament Divider */}
+            {/* Ornamental Diamond Hairline Divider */}
             <div className="mx-auto my-6 flex items-center justify-center gap-3">
-              <span className={`h-px w-14 opacity-45 ${theme.dividerBg}`} />
+              <span className={`h-px w-12 opacity-40 ${theme.dividerBg}`} />
               <span className={`h-1.5 w-1.5 rotate-45 ${theme.dividerBg}`} />
-              <span className={`h-px w-14 opacity-45 ${theme.dividerBg}`} />
+              <span className={`h-px w-12 opacity-40 ${theme.dividerBg}`} />
             </div>
 
-            {/* Main Event Date OR Interactive Gold-Foil Scratch-to-Reveal Card */}
+            {/* Main Event Date OR Gold-Foil Scratch-to-Reveal Card */}
             {event.event_date &&
               (event.scratch_reveal_enabled ? (
                 <ScratchRevealDate
@@ -209,19 +225,22 @@ export function InviteExperience({
                 />
               ) : (
                 <p
-                  className={`text-sm font-semibold uppercase tracking-[0.18em] ${theme.headingText}`}
+                  className={`text-xs font-semibold uppercase tracking-[0.22em] ${theme.headingText}`}
                 >
                   {formatEventDate(event.event_date)}
                 </p>
               ))}
 
-            {/* Live Countdown Timer */}
-            <CountdownTimer eventDate={event.event_date} themeId={event.theme_id} />
+            {/* Architectural Hairline Countdown */}
+            <CountdownTimer
+              eventDate={event.event_date}
+              themeId={event.theme_id}
+            />
 
             {/* Welcome Message */}
             {event.welcome_message && (
               <p
-                className={`mx-auto mt-8 max-w-lg whitespace-pre-line text-[15px] leading-relaxed ${theme.bodyText}`}
+                className={`mx-auto mt-7 max-w-md whitespace-pre-line text-[14px] leading-[1.72] sm:text-[15px] ${theme.bodyText}`}
               >
                 {event.welcome_message}
               </p>
@@ -229,28 +248,26 @@ export function InviteExperience({
           </div>
         </article>
 
-        {/* Couple / Event Photo Gallery (up to 4 compressed WebP photos) */}
+        {/* Couple / Event Photo Gallery */}
         {safeGalleryUrls.length > 0 && (
-          <section className="mt-10" aria-labelledby="gallery-heading">
-            <div className="mb-5 text-center">
+          <section className="mt-9" aria-labelledby="gallery-heading">
+            <div className="mb-4 text-center">
               <p
-                className={`text-[11px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
+                className={`text-[10px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
               >
                 Cherished Moments
               </p>
               <h2
                 id="gallery-heading"
-                className={`mt-1 font-serif text-3xl font-semibold ${theme.headingText}`}
+                className={`mt-1 font-editorial text-2xl font-semibold sm:text-3xl ${theme.headingText}`}
               >
                 Our Gallery
               </h2>
             </div>
 
             <div
-              className={`grid gap-3 ${
-                safeGalleryUrls.length === 1
-                  ? "grid-cols-1"
-                  : "grid-cols-2"
+              className={`grid gap-2.5 ${
+                safeGalleryUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"
               }`}
             >
               {safeGalleryUrls.map((imgUrl, idx) => (
@@ -258,17 +275,17 @@ export function InviteExperience({
                   key={imgUrl}
                   type="button"
                   onClick={() => setLightboxImage(imgUrl)}
-                  initial={{ opacity: 0, y: 14 }}
+                  initial={{ opacity: 0, y: 12 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
-                  transition={{ duration: 0.5, delay: idx * 0.08 }}
-                  className={`group relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-2xl border shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C88A2E] ${theme.cardBorder}`}
+                  transition={{ duration: 0.45, delay: idx * 0.06 }}
+                  className={`group relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-2xl border shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C88A2E] ${theme.cardBorder}`}
                 >
                   <Image
                     src={imgUrl}
                     alt={`${event.host_names} memory ${idx + 1}`}
                     fill
-                    sizes="(max-width: 768px) 46vw, 310px"
+                    sizes="(max-width: 768px) 46vw, 240px"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </motion.button>
@@ -277,88 +294,124 @@ export function InviteExperience({
           </section>
         )}
 
-        {/* Permitted Sub-Events Schedule (ONLY category-allowed functions) */}
+        {/* Editorial Numbered Vertical Timeline for Permitted Sub-Events */}
         {sub_events.length > 0 && (
           <section className="mt-10" aria-labelledby="ceremonies-heading">
             <div className="mb-6 text-center">
               <p
-                className={`text-[11px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
+                className={`text-[10px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
               >
                 Celebration Itinerary
               </p>
               <h2
                 id="ceremonies-heading"
-                className={`mt-1 font-serif text-3xl font-semibold ${theme.headingText}`}
+                className={`mt-1 font-editorial text-2xl font-semibold sm:text-3xl ${theme.headingText}`}
               >
                 Events You Are Invited To
               </h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="relative space-y-4">
+              {/* Subtle vertical editorial timeline rail */}
+              {sub_events.length > 1 && (
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute left-[21px] top-6 bottom-6 w-px opacity-30 ${theme.dividerBg}`}
+                />
+              )}
+
               {sub_events.map((sub, idx) => {
                 const safeMapsUrl = getSafeExternalUrl(sub.maps_url);
+                const ordinal = String(idx + 1).padStart(2, "0");
                 return (
                   <motion.div
                     key={sub.id}
-                    initial={{ opacity: 0, y: 18 }}
+                    initial={{ opacity: 0, y: 16 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, amount: 0.15 }}
-                    transition={{ duration: 0.5, delay: idx * 0.08 }}
-                    className={`rounded-2xl border p-6 shadow-[0_6px_24px_rgba(0,0,0,0.06)] ${theme.cardBorder} ${theme.cardBg}`}
+                    transition={{ duration: 0.48, delay: idx * 0.07 }}
+                    className="relative flex gap-3.5"
                   >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <h3 className={`font-serif text-2xl font-semibold ${theme.headingText}`}>
-                          {sub.name}
-                        </h3>
+                    {/* Numbered Timeline Node */}
+                    <div
+                      className={`relative z-10 mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border font-display text-xs font-semibold shadow-2xs ${theme.pillBg} ${theme.accentText}`}
+                    >
+                      {ordinal}
+                    </div>
 
-                        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm ${theme.bodyText}`}>
+                    {/* Ceremony Card */}
+                    <div
+                      className={`texture-paper flex-1 rounded-2xl border p-5 shadow-[0_6px_22px_rgba(0,0,0,0.05)] ${theme.cardBorder} ${theme.cardBg}`}
+                    >
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <h3
+                            className={`font-editorial text-2xl font-semibold leading-snug ${theme.headingText}`}
+                          >
+                            {sub.name}
+                          </h3>
+                          {sub.dress_code && (
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium ${theme.pillBg} ${theme.pillText}`}
+                            >
+                              <Shirt
+                                className={`h-3 w-3 shrink-0 ${theme.accentText}`}
+                              />
+                              <span>{sub.dress_code}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <div
+                          className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm ${theme.bodyText}`}
+                        >
                           {sub.event_date && (
                             <span className="inline-flex items-center gap-1.5">
-                              <Calendar className={`h-4 w-4 ${theme.accentText}`} />
+                              <Calendar
+                                className={`h-3.5 w-3.5 ${theme.accentText}`}
+                              />
                               {formatEventDate(sub.event_date)}
                             </span>
                           )}
                           {sub.start_time && (
                             <span className="inline-flex items-center gap-1.5">
-                              <Clock className={`h-4 w-4 ${theme.accentText}`} />
+                              <Clock
+                                className={`h-3.5 w-3.5 ${theme.accentText}`}
+                              />
                               {sub.start_time}
                             </span>
                           )}
                         </div>
 
                         {sub.venue_name && (
-                          <p className={`flex items-start gap-1.5 text-sm ${theme.bodyText}`}>
-                            <MapPin className={`mt-0.5 h-4 w-4 shrink-0 ${theme.accentText}`} />
+                          <p
+                            className={`flex items-start gap-1.5 text-xs sm:text-sm ${theme.bodyText}`}
+                          >
+                            <MapPin
+                              className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${theme.accentText}`}
+                            />
                             <span>{sub.venue_name}</span>
                           </p>
                         )}
                       </div>
 
-                      {sub.dress_code && (
+                      {safeMapsUrl && (
                         <div
-                          className={`inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-medium ${theme.pillBg} ${theme.pillText}`}
+                          className={`mt-4 border-t pt-3.5 ${theme.innerBorder}`}
                         >
-                          <Shirt className={`h-3.5 w-3.5 ${theme.accentText}`} />
-                          <span>{sub.dress_code}</span>
+                          <a
+                            href={safeMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors ${theme.secondaryBtn}`}
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                            Open in Google Maps
+                            <ExternalLink className="h-3 w-3 opacity-75" />
+                          </a>
                         </div>
                       )}
                     </div>
-
-                    {safeMapsUrl && (
-                      <div className={`mt-4 border-t pt-4 ${theme.innerBorder}`}>
-                        <a
-                          href={safeMapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-colors ${theme.secondaryBtn}`}
-                        >
-                          <MapPin className="h-3.5 w-3.5" />
-                          Open in Google Maps
-                          <ExternalLink className="h-3 w-3 opacity-75" />
-                        </a>
-                      </div>
-                    )}
                   </motion.div>
                 );
               })}
@@ -366,7 +419,7 @@ export function InviteExperience({
           </section>
         )}
 
-        {/* Smart Per-Event RSVP Section (Hidden when host toggles RSVP OFF) */}
+        {/* Smart Per-Event RSVP Section */}
         {event.rsvp_enabled && (
           <RsvpForm
             slug={event.slug}
@@ -381,36 +434,37 @@ export function InviteExperience({
         )}
 
         {/* Subtle Footer & Replay Control */}
-        <footer className="mt-10 flex flex-col items-center gap-3 pb-12 text-center">
+        <footer className="mt-10 flex flex-col items-center gap-2.5 pb-12 text-center">
           <button
             type="button"
             onClick={() => {
               audioRef.current?.stop();
-              setMusicPlaying(false);
               setOpened(false);
             }}
-            className={`inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium transition-opacity opacity-80 hover:opacity-100 ${theme.mutedText}`}
+            className={`inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 px-4 text-xs font-medium opacity-80 transition-opacity hover:opacity-100 ${theme.mutedText}`}
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Replay Opening Animation
+            Replay Opening
           </button>
-          <p className={`text-[11px] uppercase tracking-[0.18em] opacity-75 ${theme.mutedText}`}>
+          <p
+            className={`font-display text-[10px] uppercase tracking-[0.26em] opacity-70 ${theme.mutedText}`}
+          >
             Crafted with SaffronPass
           </p>
         </footer>
       </motion.main>
 
-      {/* Floating Bottom-Right Mute / Play Pill once Opened */}
+      {/* Floating Glassmorphic Audio Pill */}
       {opened && hasMusic && (
         <MusicPlayerButton
           playing={musicPlaying}
           onToggle={handleToggleMusic}
           isDark={theme.isDark}
-          inModal={inModal}
+          embedded={embedded}
         />
       )}
 
-      {/* Photo Lightbox Modal */}
+      {/* Photo Lightbox */}
       <AnimatePresence>
         {lightboxImage && (
           <motion.div
@@ -418,7 +472,7 @@ export function InviteExperience({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setLightboxImage(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-label="Enlarged couple photo"
@@ -427,13 +481,13 @@ export function InviteExperience({
               type="button"
               onClick={() => setLightboxImage(null)}
               aria-label="Close photo preview"
-              className="absolute right-4 top-4 inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+              className="absolute right-4 top-4 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
             >
               <X className="h-5 w-5" />
             </button>
             <div
               onClick={(e) => e.stopPropagation()}
-              className="relative h-[75vh] w-full max-w-3xl overflow-hidden rounded-2xl"
+              className="relative h-[78vh] w-full max-w-3xl overflow-hidden rounded-2xl"
             >
               <Image
                 src={lightboxImage}
@@ -446,6 +500,50 @@ export function InviteExperience({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+
+  // Embedded mode (Studio / Editor phone preview): render directly inside its host container
+  if (embedded) {
+    return inviteInnerContent;
+  }
+
+  // Full Guest Invite Route (/[slug]/[code]):
+  // Mobile: Edge-to-edge full-bleed.
+  // Tablet/Desktop (md+): Blurred ambient canvas framing a centered 520px museum-grade vertical keepsake!
+  return (
+    <div
+      className={`relative min-h-[100dvh] w-full overflow-x-hidden ${theme.desktopAmbientBg} md:py-10 md:px-6`}
+    >
+      {/* Blurred & Tinted Desktop Ambient Canvas (md+) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 hidden md:block"
+      >
+        {safeCoverUrl ? (
+          <>
+            <Image
+              src={safeCoverUrl}
+              alt=""
+              fill
+              sizes="100vw"
+              className="scale-110 object-cover opacity-35 blur-3xl"
+            />
+            <div className="absolute inset-0 bg-black/58" />
+          </>
+        ) : (
+          <div className={`h-full w-full opacity-80 ${theme.coverBackdropClass}`}>
+            <div className="absolute inset-0 bg-black/48 backdrop-blur-3xl" />
+          </div>
+        )}
+      </div>
+
+      {/* Centered Vertical Keepsake Column on md+, Full-Bleed on Mobile */}
+      <div
+        className={`relative z-10 mx-auto w-full md:max-w-[520px] md:overflow-hidden md:rounded-[34px] md:border md:shadow-[0_32px_90px_rgba(0,0,0,0.52)] ${theme.cardBorder}`}
+      >
+        {inviteInnerContent}
+      </div>
     </div>
   );
 }

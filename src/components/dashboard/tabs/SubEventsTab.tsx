@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   ArrowDown,
   ArrowUp,
   Calendar,
@@ -15,6 +14,7 @@ import {
   Shirt,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   deleteSubEventAction,
   reorderSubEventsAction,
@@ -48,7 +48,6 @@ export function SubEventsTab({
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
     setEditingId(null);
@@ -58,7 +57,6 @@ export function SubEventsTab({
     setVenueName("");
     setMapsUrl("");
     setDressCode("");
-    setError(null);
   };
 
   const startEdit = (item: SubEventRecord) => {
@@ -69,7 +67,6 @@ export function SubEventsTab({
     setVenueName(item.venue_name ?? "");
     setMapsUrl(item.maps_url ?? "");
     setDressCode(item.dress_code ?? "");
-    setError(null);
   };
 
   const applyPreset = (preset: (typeof SUB_EVENT_PRESETS)[number]) => {
@@ -77,12 +74,10 @@ export function SubEventsTab({
     setName(preset.name);
     setStartTime(preset.start_time);
     setDressCode(preset.dress_code);
-    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setSaving(true);
 
     try {
@@ -102,14 +97,17 @@ export function SubEventsTab({
       });
 
       if (!res.ok) {
-        setError(res.error || "Failed to save sub-event.");
+        toast.error(res.error || "Failed to save ceremony.");
         return;
       }
 
+      toast.success(
+        editingId ? "Ceremony updated." : `"${name.trim()}" added to schedule.`
+      );
       resetForm();
       router.refresh();
     } catch {
-      setError("Network error while saving sub-event.");
+      toast.error("Network error while saving ceremony.");
     } finally {
       setSaving(false);
     }
@@ -120,7 +118,6 @@ export function SubEventsTab({
     if (target < 0 || target >= subEvents.length) return;
 
     setReordering(true);
-    setError(null);
     const reordered = [...subEvents];
     const [moved] = reordered.splice(index, 1);
     reordered.splice(target, 0, moved);
@@ -131,8 +128,9 @@ export function SubEventsTab({
         reordered.map((s) => s.id)
       );
       if (!res.ok) {
-        setError(res.error || "Failed to reorder ceremonies.");
+        toast.error(res.error || "Failed to reorder ceremonies.");
       } else {
+        toast.success("Schedule order updated.");
         router.refresh();
       }
     } finally {
@@ -140,15 +138,15 @@ export function SubEventsTab({
     }
   };
 
-  const handleDelete = async (subEventId: string) => {
+  const handleDelete = async (subEventId: string, subName: string) => {
     setDeletingId(subEventId);
-    setError(null);
     try {
       const res = await deleteSubEventAction(eventId, subEventId);
       if (!res.ok) {
-        setError(res.error || "Failed to delete sub-event.");
+        toast.error(res.error || "Failed to delete ceremony.");
       } else {
         if (editingId === subEventId) resetForm();
+        toast.success(`"${subName}" removed from schedule.`);
         router.refresh();
       }
     } finally {
@@ -157,18 +155,23 @@ export function SubEventsTab({
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-12">
-      {/* Add / Edit Sub-Event Form */}
-      <section className="rounded-2xl border border-[#C88A2E]/30 bg-[#FFFDF8] p-5 sm:p-6 lg:col-span-5">
+    <div className="space-y-7">
+      {/* Add / Edit Ceremony Form */}
+      <section className="gold-shimmer-border rounded-2xl bg-[#FFFDF9] p-5 sm:p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
-            {editingId ? "Edit Ceremony" : "Add Ceremony / Function"}
-          </h2>
+          <div>
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-[#B88433]">
+              Ceremony Builder
+            </p>
+            <h2 className="mt-1 font-editorial text-2xl font-semibold text-[#470F1B]">
+              {editingId ? "Edit Ceremony" : "Add Ceremony / Function"}
+            </h2>
+          </div>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
-              className="cursor-pointer text-xs font-medium text-[#7A6258] hover:text-[#5B1422]"
+              className="min-h-[38px] cursor-pointer rounded-lg px-3 text-xs font-semibold text-[#796258] hover:bg-[#FBF3E5] hover:text-[#54121F]"
             >
               Cancel Edit
             </button>
@@ -178,16 +181,16 @@ export function SubEventsTab({
         {/* Quick Ceremony Presets */}
         {!editingId && (
           <div className="mt-3">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8E786C]">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8E786C]">
               Quick Prefill
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
               {SUB_EVENT_PRESETS.map((preset) => (
                 <button
                   key={preset.name}
                   type="button"
                   onClick={() => applyPreset(preset)}
-                  className="cursor-pointer rounded-full border border-[#C88A2E]/35 bg-[#FCF8F1] px-3 py-1 text-xs font-medium text-[#5B1422] transition-colors hover:bg-[#5B1422] hover:text-[#FCF8F1]"
+                  className="min-h-[38px] shrink-0 cursor-pointer rounded-full border border-[#B88433]/32 bg-[#FBF7F0] px-3.5 py-1.5 text-xs font-semibold text-[#54121F] transition-colors hover:bg-[#54121F] hover:text-[#FBF7F0]"
                 >
                   + {preset.name}
                 </button>
@@ -196,37 +199,30 @@ export function SubEventsTab({
           </div>
         )}
 
-        {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#8E1E31]/30 bg-[#8E1E31]/8 p-3 text-xs text-[#6B1222]">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <div>
-            <label
-              htmlFor="sub-name"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
-            >
-              Function Name *
-            </label>
-            <input
-              id="sub-name"
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Haldi, Sangeet, Wedding, Reception"
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
-            />
-          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="sub-name"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
+              >
+                Function Name *
+              </label>
+              <input
+                id="sub-name"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Haldi, Sangeet, Wedding, Reception"
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
+              />
+            </div>
 
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label
                 htmlFor="sub-date"
-                className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
               >
                 Date
               </label>
@@ -235,14 +231,14 @@ export function SubEventsTab({
                 type="date"
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
-                className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
               />
             </div>
 
             <div>
               <label
                 htmlFor="sub-time"
-                className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
               >
                 Start Time
               </label>
@@ -252,66 +248,66 @@ export function SubEventsTab({
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 placeholder="e.g., 7:30 PM"
-                className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
               />
             </div>
-          </div>
 
-          <div>
-            <label
-              htmlFor="sub-venue"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
-            >
-              Venue Name &amp; Address
-            </label>
-            <input
-              id="sub-venue"
-              type="text"
-              value={venueName}
-              onChange={(e) => setVenueName(e.target.value)}
-              placeholder="e.g., Courtyard Lawn, Taj Rambagh Palace, Jaipur"
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
-            />
-          </div>
+            <div>
+              <label
+                htmlFor="sub-venue"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
+              >
+                Venue Name &amp; Address
+              </label>
+              <input
+                id="sub-venue"
+                type="text"
+                value={venueName}
+                onChange={(e) => setVenueName(e.target.value)}
+                placeholder="e.g., Zenana Mahal, Udaipur"
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
+              />
+            </div>
 
-          <div>
-            <label
-              htmlFor="sub-maps"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
-            >
-              Google Maps URL
-            </label>
-            <input
-              id="sub-maps"
-              type="url"
-              value={mapsUrl}
-              onChange={(e) => setMapsUrl(e.target.value)}
-              placeholder="https://maps.google.com/?q=..."
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
-            />
-          </div>
+            <div>
+              <label
+                htmlFor="sub-dress"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
+              >
+                Dress Code
+              </label>
+              <input
+                id="sub-dress"
+                type="text"
+                value={dressCode}
+                onChange={(e) => setDressCode(e.target.value)}
+                placeholder="e.g., Marigold Yellow Ethnic"
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
+              />
+            </div>
 
-          <div>
-            <label
-              htmlFor="sub-dress"
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-[#5B1422]"
-            >
-              Dress Code
-            </label>
-            <input
-              id="sub-dress"
-              type="text"
-              value={dressCode}
-              onChange={(e) => setDressCode(e.target.value)}
-              placeholder="e.g., Marigold Yellow Ethnic"
-              className="w-full rounded-xl border border-[#C88A2E]/35 bg-white px-3.5 py-2.5 text-sm text-[#241815] focus:border-[#5B1422] focus:outline-none"
-            />
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="sub-maps"
+                className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54121F]"
+              >
+                Google Maps URL
+              </label>
+              <input
+                id="sub-maps"
+                type="url"
+                value={mapsUrl}
+                onChange={(e) => setMapsUrl(e.target.value)}
+                placeholder="https://maps.google.com/?q=..."
+                className="min-h-[44px] w-full rounded-xl border border-[#B88433]/32 bg-white px-3.5 py-2.5 text-sm text-[#221714] focus:border-[#54121F] focus:outline-none"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#5B1422] px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#FCF8F1] shadow-sm transition-colors hover:bg-[#460E19] disabled:opacity-60"
+            className="inline-flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#54121F] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#FBF7F0] shadow-xs transition-colors hover:bg-[#3D0B16] disabled:opacity-60 sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             {saving
@@ -324,26 +320,25 @@ export function SubEventsTab({
       </section>
 
       {/* Ordered Schedule List */}
-      <section className="space-y-4 lg:col-span-7">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-serif text-2xl font-semibold text-[#4A101C]">
-              Ceremonies Schedule ({subEvents.length})
-            </h2>
-            <p className="text-xs text-[#7A6258]">
-              Use the arrows to arrange the exact chronological display order.
-            </p>
-          </div>
+      <section className="space-y-3.5">
+        <div>
+          <h2 className="font-editorial text-2xl font-semibold text-[#470F1B]">
+            Ceremonies Schedule ({subEvents.length})
+          </h2>
+          <p className="text-xs text-[#796258]">
+            Arrange display order with arrows. Assign visibility per circle in
+            Category Links.
+          </p>
         </div>
 
         {subEvents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#C88A2E]/40 bg-[#FFFDF8] p-10 text-center">
-            <p className="font-serif text-xl font-semibold text-[#4A101C]">
+          <div className="rounded-2xl border border-dashed border-[#B88433]/40 bg-[#FFFDF9] p-10 text-center">
+            <p className="font-editorial text-xl font-semibold text-[#470F1B]">
               No Ceremonies Added Yet
             </p>
-            <p className="mt-1.5 text-sm text-[#69564E]">
-              Add your Haldi, Mehendi, Sangeet, Wedding, Reception, or Puja on
-              the left. Then assign which guest circles can view each one in Tab 3.
+            <p className="mt-1.5 text-sm text-[#6C5950]">
+              Add your Haldi, Mehendi, Sangeet, Wedding, Reception, or Puja
+              above to preview your timeline.
             </p>
           </div>
         ) : (
@@ -353,15 +348,15 @@ export function SubEventsTab({
               return (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-[#C88A2E]/30 bg-[#FFFDF8] p-5 shadow-xs"
+                  className="gold-shimmer-border rounded-2xl bg-[#FFFDF9] p-5"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FCF5E8] text-xs font-semibold text-[#8E5B17]">
-                          {idx + 1}
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FBF3E5] font-display text-[11px] font-semibold text-[#8E5B17]">
+                          {String(idx + 1).padStart(2, "0")}
                         </span>
-                        <h3 className="font-serif text-2xl font-semibold text-[#4A101C]">
+                        <h3 className="font-editorial text-2xl font-semibold text-[#470F1B]">
                           {item.name}
                         </h3>
                       </div>
@@ -369,19 +364,19 @@ export function SubEventsTab({
                       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#5C4942]">
                         {item.event_date && (
                           <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5 text-[#C88A2E]" />
+                            <Calendar className="h-3.5 w-3.5 text-[#B88433]" />
                             {formatShortDate(item.event_date)}
                           </span>
                         )}
                         {item.start_time && (
                           <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 text-[#C88A2E]" />
+                            <Clock className="h-3.5 w-3.5 text-[#B88433]" />
                             {item.start_time}
                           </span>
                         )}
                         {item.dress_code && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#FCF5E8] px-2.5 py-0.5 font-medium text-[#5B1422]">
-                            <Shirt className="h-3 w-3 text-[#C88A2E]" />
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#FBF3E5] px-2.5 py-0.5 font-medium text-[#54121F]">
+                            <Shirt className="h-3 w-3 text-[#B88433]" />
                             {item.dress_code}
                           </span>
                         )}
@@ -389,7 +384,7 @@ export function SubEventsTab({
 
                       {item.venue_name && (
                         <p className="mt-2 flex items-start gap-1.5 text-xs text-[#4A3832]">
-                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#C88A2E]" />
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B88433]" />
                           <span>{item.venue_name}</span>
                         </p>
                       )}
@@ -399,7 +394,7 @@ export function SubEventsTab({
                           href={safeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#5B1422] underline-offset-2 hover:underline"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#54121F] underline-offset-2 hover:underline"
                         >
                           Google Maps Link
                           <ExternalLink className="h-3 w-3" />
@@ -407,42 +402,41 @@ export function SubEventsTab({
                       )}
                     </div>
 
-                    {/* Reorder, Edit, Delete Controls */}
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1.5">
                       <button
                         type="button"
                         disabled={idx === 0 || reordering}
                         onClick={() => handleMove(idx, -1)}
                         aria-label={`Move ${item.name} up`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8] disabled:cursor-not-allowed disabled:opacity-35"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#B88433]/30 bg-white text-[#54121F] hover:bg-[#FBF3E5] disabled:cursor-not-allowed disabled:opacity-35"
                       >
-                        <ArrowUp className="h-3.5 w-3.5" />
+                        <ArrowUp className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         disabled={idx === subEvents.length - 1 || reordering}
                         onClick={() => handleMove(idx, 1)}
                         aria-label={`Move ${item.name} down`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8] disabled:cursor-not-allowed disabled:opacity-35"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#B88433]/30 bg-white text-[#54121F] hover:bg-[#FBF3E5] disabled:cursor-not-allowed disabled:opacity-35"
                       >
-                        <ArrowDown className="h-3.5 w-3.5" />
+                        <ArrowDown className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => startEdit(item)}
                         aria-label={`Edit ${item.name}`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#C88A2E]/30 bg-white text-[#5B1422] hover:bg-[#FCF5E8]"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#B88433]/30 bg-white text-[#54121F] hover:bg-[#FBF3E5]"
                       >
-                        <Edit3 className="h-3.5 w-3.5" />
+                        <Edit3 className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         disabled={deletingId === item.id}
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => handleDelete(item.id, item.name)}
                         aria-label={`Delete ${item.name}`}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#8E1E31]/25 bg-white text-[#8E1E31] hover:bg-[#8E1E31]/8 disabled:opacity-40"
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#8E1E31]/25 bg-white text-[#8E1E31] hover:bg-[#8E1E31]/8 disabled:opacity-40"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>

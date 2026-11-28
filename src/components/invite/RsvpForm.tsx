@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useMemo, useState, useSyncExternalStore } from "react";
-import { Check, CheckCircle2, Edit3, Users, AlertCircle } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Edit3,
+  Minus,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
 import { MEAL_PREFERENCES } from "@/lib/constants";
 import { getInviteTheme } from "@/lib/theme-styles";
 import {
@@ -56,14 +65,14 @@ export function RsvpForm({
         : Math.max(1, maxSeats);
 
   const buildDefaultSubEventState = () => {
-    const initial: Record<string, { attending: boolean; guestCount: number }> = {};
+    const initial: Record<string, { attending: boolean; guestCount: number }> =
+      {};
     for (const se of subEvents) {
       initial[se.id] = { attending: true, guestCount: 1 };
     }
     return initial;
   };
 
-  // Hydration-safe read of returning guest localStorage receipt
   const persistedRaw = useSyncExternalStore(
     emptySubscribe,
     () => {
@@ -90,7 +99,9 @@ export function RsvpForm({
     return null;
   }, [persistedRaw]);
 
-  const [sessionReceipt, setSessionReceipt] = useState<StoredReceipt | null>(null);
+  const [sessionReceipt, setSessionReceipt] = useState<StoredReceipt | null>(
+    null
+  );
   const savedReceipt = sessionReceipt ?? persistedReceipt;
   const [isEditing, setIsEditing] = useState(false);
 
@@ -105,10 +116,8 @@ export function RsvpForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const startEditingFromReceipt = (receipt: StoredReceipt) => {
-    setSuccessBanner(null);
     setErrorMessage(null);
     setGuestName(receipt.guestName);
     setPhoneNumber(receipt.phoneNumber);
@@ -116,7 +125,8 @@ export function RsvpForm({
     setMealPreference(receipt.mealPreference || "");
     setNote(receipt.note || "");
 
-    const hydrated: Record<string, { attending: boolean; guestCount: number }> = {};
+    const hydrated: Record<string, { attending: boolean; guestCount: number }> =
+      {};
     for (const se of subEvents) {
       const prev = receipt.subEvents?.[se.id];
       hydrated[se.id] = {
@@ -139,27 +149,35 @@ export function RsvpForm({
         guestCount:
           etiquetteType === "solo"
             ? 1
-            : Math.max(1, Math.min(prev[subEventId]?.guestCount || 1, effectiveMaxSeats)),
+            : Math.max(
+                1,
+                Math.min(prev[subEventId]?.guestCount || 1, effectiveMaxSeats)
+              ),
       },
     }));
   };
 
-  const handleChangeSubEventCount = (subEventId: string, count: number) => {
+  const handleStepCount = (subEventId: string, delta: -1 | 1) => {
     if (etiquetteType === "solo") return;
-    const clamped = Math.max(1, Math.min(count, effectiveMaxSeats));
-    setSubEventState((prev) => ({
-      ...prev,
-      [subEventId]: {
-        attending: prev[subEventId]?.attending ?? true,
-        guestCount: clamped,
-      },
-    }));
+    setSubEventState((prev) => {
+      const current = prev[subEventId] ?? { attending: true, guestCount: 1 };
+      const nextCount = Math.max(
+        1,
+        Math.min(current.guestCount + delta, effectiveMaxSeats)
+      );
+      return {
+        ...prev,
+        [subEventId]: {
+          attending: true,
+          guestCount: nextCount,
+        },
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setSuccessBanner(null);
 
     const trimmedName = guestName.trim();
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
@@ -170,7 +188,9 @@ export function RsvpForm({
     }
 
     if (!isValidPhoneNumber(normalizedPhone)) {
-      setErrorMessage("Please enter a valid phone number (at least 10 digits).");
+      setErrorMessage(
+        "Please enter a valid phone number (at least 10 digits)."
+      );
       return;
     }
 
@@ -188,7 +208,11 @@ export function RsvpForm({
       };
     });
 
-    if (overallAttending && subEvents.length > 0 && !subEventPayload.some((s) => s.attending)) {
+    if (
+      overallAttending &&
+      subEvents.length > 0 &&
+      !subEventPayload.some((s) => s.attending)
+    ) {
       setErrorMessage(
         "Please select 'Yes' for at least one ceremony, or choose 'Regretfully Declines' above."
       );
@@ -215,9 +239,7 @@ export function RsvpForm({
       };
       setSessionReceipt(demoReceipt);
       setIsEditing(false);
-      setSuccessBanner(
-        "Demo RSVP confirmed! On a live invite, this syncs instantly to the host dashboard."
-      );
+      toast.success("Demo RSVP confirmed! Live invites sync straight to the host dashboard.");
       return;
     }
 
@@ -241,14 +263,17 @@ export function RsvpForm({
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMessage(data.error || "Could not submit your RSVP. Please try again.");
+        const msg =
+          data.error || "Could not submit your RSVP. Please try again.";
+        setErrorMessage(msg);
+        toast.error(msg);
         return;
       }
 
       const receipt: StoredReceipt = data.rsvp;
       setSessionReceipt(receipt);
       setIsEditing(false);
-      setSuccessBanner(
+      toast.success(
         data.isUpdate
           ? "Your previous RSVP has been updated seamlessly."
           : "Thank you! Your RSVP has been recorded."
@@ -257,68 +282,70 @@ export function RsvpForm({
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(receipt));
       } catch {
-        // Ignore private browsing storage quota errors
+        // Ignore storage errors
       }
     } catch {
-      setErrorMessage(
-        "Network error while sending RSVP. Please check your connection and retry."
-      );
+      const msg =
+        "Network error while sending RSVP. Please check your connection and retry.";
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const seatChoices = Array.from({ length: effectiveMaxSeats }, (_, idx) => idx + 1);
-
   return (
     <section
       id="rsvp-section"
-      className={`mt-10 rounded-2xl border p-6 shadow-[0_8px_32px_rgba(0,0,0,0.08)] sm:p-8 ${theme.cardBorder} ${theme.cardBg}`}
+      className={`texture-paper mt-10 rounded-[26px] border p-5 shadow-[0_12px_36px_rgba(0,0,0,0.08)] sm:p-8 ${theme.cardBorder} ${theme.cardBg}`}
     >
       {/* Header & Etiquette Notice */}
       <div className="text-center">
-        <p className={`text-[11px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}>
+        <p
+          className={`text-[10px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
+        >
           Kindly Respond
         </p>
-        <h2 className={`mt-1.5 font-serif text-3xl font-semibold ${theme.headingText}`}>
+        <h2
+          className={`mt-1.5 font-editorial text-3xl font-semibold ${theme.headingText}`}
+        >
           RSVP
         </h2>
         <div
-          className={`mx-auto mt-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium ${theme.pillBg} ${theme.pillText}`}
+          className={`mx-auto mt-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[11px] font-medium ${theme.pillBg} ${theme.pillText}`}
         >
           <Users className={`h-3.5 w-3.5 ${theme.accentText}`} />
-          <span>{getEtiquetteHeadline(etiquetteType, effectiveMaxSeats, greetingPrefix)}</span>
+          <span>
+            {getEtiquetteHeadline(
+              etiquetteType,
+              effectiveMaxSeats,
+              greetingPrefix
+            )}
+          </span>
         </div>
       </div>
 
-      {successBanner && (
-        <div
-          className={`mt-6 flex items-start gap-2.5 rounded-xl border p-3.5 text-sm ${
-            theme.isDark
-              ? "border-emerald-400/35 bg-emerald-950/60 text-emerald-200"
-              : "border-[#1F6E4A]/30 bg-[#1F6E4A]/8 text-[#175438]"
-          }`}
-        >
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{successBanner}</span>
-        </div>
-      )}
-
-      {/* Returning Guest Confirmed Receipt */}
+      {/* Celebratory Confirmation & Returning Guest Receipt */}
       {savedReceipt && !isEditing ? (
         <div
-          className={`mt-6 rounded-2xl border p-5 text-center sm:p-6 ${theme.subCardActive}`}
+          className={`mt-6 rounded-2xl border p-6 text-center ${theme.subCardActive}`}
         >
           <div
-            className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full ${
+            className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
               theme.isDark
-                ? "bg-emerald-500/20 text-emerald-300"
-                : "bg-[#1F6E4A]/12 text-[#1F6E4A]"
+                ? "bg-[#E2BD72]/18 text-[#F6E4B8]"
+                : "bg-[#1B6343]/12 text-[#1B6343]"
             }`}
           >
-            <Check className="h-5 w-5" />
+            {savedReceipt.overallAttending ? (
+              <Sparkles className="h-5 w-5" />
+            ) : (
+              <Check className="h-5 w-5" />
+            )}
           </div>
-          <h3 className={`mt-3 font-serif text-2xl font-semibold ${theme.headingText}`}>
+          <h3
+            className={`mt-3 font-editorial text-2xl font-semibold ${theme.headingText}`}
+          >
             You already confirmed
           </h3>
           <p className={`mt-1 text-sm ${theme.mutedText}`}>
@@ -340,14 +367,14 @@ export function RsvpForm({
                       isYes
                         ? theme.isDark
                           ? "border-emerald-400/35 bg-emerald-950/70 text-emerald-200"
-                          : "border-[#1F6E4A]/30 bg-[#1F6E4A]/10 text-[#175438]"
+                          : "border-[#1B6343]/30 bg-[#1B6343]/10 text-[#154F35]"
                         : theme.isDark
                           ? "border-white/15 bg-white/5 text-[#A897A3] line-through"
-                          : "border-[#241815]/12 bg-white/80 text-[#7A6258] line-through"
+                          : "border-[#221714]/12 bg-white/80 text-[#7A6258] line-through"
                     }`}
                   >
                     {se.name}
-                    {isYes ? ` (${entry.guestCount})` : ""}
+                    {isYes ? ` · ${entry.guestCount}` : ""}
                   </span>
                 );
               })}
@@ -357,7 +384,7 @@ export function RsvpForm({
           <button
             type="button"
             onClick={() => startEditingFromReceipt(savedReceipt)}
-            className={`mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] transition-colors ${theme.secondaryBtn}`}
+            className={`mt-5 inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition-colors ${theme.secondaryBtn}`}
           >
             <Edit3 className="h-3.5 w-3.5" />
             Tap to Edit Your RSVP
@@ -384,7 +411,7 @@ export function RsvpForm({
             <div>
               <label
                 htmlFor={`guest-name-${code}`}
-                className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+                className={`mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
               >
                 Your Full Name *
               </label>
@@ -395,16 +422,16 @@ export function RsvpForm({
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
                 placeholder="e.g., Rohan Mehta"
-                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
+                className={`min-h-[44px] w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
               />
             </div>
 
             <div>
               <label
                 htmlFor={`guest-phone-${code}`}
-                className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+                className={`mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
               >
-                Phone Number (WhatsApp) *
+                Phone (WhatsApp) *
               </label>
               <input
                 id={`guest-phone-${code}`}
@@ -413,23 +440,23 @@ export function RsvpForm({
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+91 98765 43210"
-                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
+                className={`min-h-[44px] w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${theme.inputClass}`}
               />
             </div>
           </div>
 
-          {/* Overall Attendance Toggle */}
+          {/* Tactile Segmented Attendance Toggle */}
           <div>
             <span
-              className={`mb-2 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+              className={`mb-2 block text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
             >
               Will You Join Us?
             </span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setOverallAttending(true)}
-                className={`cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
+                className={`min-h-[46px] cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-semibold tracking-[0.04em] transition-all sm:text-sm ${
                   overallAttending
                     ? `${theme.primaryBtn} border-transparent shadow-sm`
                     : theme.secondaryBtn
@@ -440,7 +467,7 @@ export function RsvpForm({
               <button
                 type="button"
                 onClick={() => setOverallAttending(false)}
-                className={`cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
+                className={`min-h-[46px] cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-semibold tracking-[0.04em] transition-all sm:text-sm ${
                   !overallAttending
                     ? `${theme.primaryBtn} border-transparent shadow-sm`
                     : theme.secondaryBtn
@@ -451,19 +478,19 @@ export function RsvpForm({
             </div>
           </div>
 
-          {/* Per-Event Attendance & Seat Controls */}
+          {/* Per-Event Tactile Attendance Pills & Smooth Stepper Controls */}
           {overallAttending && subEvents.length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1">
                 <span
-                  className={`text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+                  className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
                 >
                   Select Ceremonies &amp; Guests
                 </span>
-                <span className={`text-xs ${theme.mutedText}`}>
+                <span className={`text-[11px] ${theme.mutedText}`}>
                   {etiquetteType === "solo"
-                    ? "1 seat per ceremony"
-                    : `Up to ${effectiveMaxSeats} seats per ceremony`}
+                    ? "1 seat strictly"
+                    : `Up to ${effectiveMaxSeats} per ceremony`}
                 </span>
               </div>
 
@@ -477,13 +504,17 @@ export function RsvpForm({
                   return (
                     <div
                       key={se.id}
-                      className={`rounded-xl border p-3.5 transition-colors sm:p-4 ${
-                        state.attending ? theme.subCardActive : theme.subCardInactive
+                      className={`rounded-2xl border p-3.5 transition-colors sm:p-4 ${
+                        state.attending
+                          ? theme.subCardActive
+                          : theme.subCardInactive
                       }`}
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className={`font-serif text-lg font-semibold ${theme.headingText}`}>
+                          <p
+                            className={`font-editorial text-lg font-semibold leading-snug ${theme.headingText}`}
+                          >
                             {se.name}
                           </p>
                           <p className={`text-xs ${theme.mutedText}`}>
@@ -492,21 +523,22 @@ export function RsvpForm({
                           </p>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:justify-end">
+                          {/* Tactile Yes / No Segmented Pill */}
                           <div
-                            className={`inline-flex rounded-lg border p-0.5 ${
+                            className={`inline-flex rounded-xl border p-1 ${
                               theme.isDark
-                                ? "border-[#E8C67A]/30 bg-[#170A1B]"
-                                : "border-[#C88A2E]/35 bg-white"
+                                ? "border-[#E2BD72]/28 bg-[#140818]"
+                                : "border-[#B88433]/30 bg-white"
                             }`}
                           >
                             <button
                               type="button"
                               onClick={() => handleToggleSubEvent(se.id, true)}
-                              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              className={`min-h-[36px] min-w-[48px] cursor-pointer rounded-lg px-3 text-xs font-semibold transition-colors ${
                                 state.attending
-                                  ? "bg-[#1F6E4A] text-white"
-                                  : `${theme.mutedText}`
+                                  ? "bg-[#1B6343] text-white shadow-2xs"
+                                  : theme.mutedText
                               }`}
                             >
                               Yes
@@ -514,44 +546,60 @@ export function RsvpForm({
                             <button
                               type="button"
                               onClick={() => handleToggleSubEvent(se.id, false)}
-                              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              className={`min-h-[36px] min-w-[48px] cursor-pointer rounded-lg px-3 text-xs font-semibold transition-colors ${
                                 !state.attending
-                                  ? "bg-[#5B1422] text-white"
-                                  : `${theme.mutedText}`
+                                  ? "bg-[#54121F] text-white shadow-2xs"
+                                  : theme.mutedText
                               }`}
                             >
                               No
                             </button>
                           </div>
 
-                          {/* Seat selector: strictly hidden for Solo */}
+                          {/* Stepper Control (- 2 +) or Strict Solo Pill */}
                           {state.attending &&
                             (etiquetteType === "solo" ? (
                               <span
-                                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${theme.pillBg} ${theme.pillText}`}
+                                className={`inline-flex min-h-[44px] items-center rounded-xl border px-3 text-xs font-semibold ${theme.pillBg} ${theme.pillText}`}
                               >
                                 1 Guest
                               </span>
                             ) : (
-                              <label className="inline-flex items-center gap-1.5 text-xs font-medium">
-                                <span className="sr-only">Guests for {se.name}</span>
-                                <select
-                                  value={state.guestCount}
-                                  onChange={(e) =>
-                                    handleChangeSubEventCount(
-                                      se.id,
-                                      Number(e.target.value)
-                                    )
-                                  }
-                                  className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none ${theme.inputClass}`}
+                              <div
+                                className={`inline-flex items-center rounded-xl border p-0.5 ${
+                                  theme.isDark
+                                    ? "border-[#E2BD72]/32 bg-[#140818]"
+                                    : "border-[#B88433]/35 bg-white"
+                                }`}
+                                role="group"
+                                aria-label={`Guest count for ${se.name}`}
+                              >
+                                <button
+                                  type="button"
+                                  disabled={state.guestCount <= 1}
+                                  onClick={() => handleStepCount(se.id, -1)}
+                                  aria-label={`Decrease guests for ${se.name}`}
+                                  className={`inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${theme.headingText} hover:bg-[#B88433]/12`}
                                 >
-                                  {seatChoices.map((n) => (
-                                    <option key={n} value={n}>
-                                      {n} {n === 1 ? "Guest" : "Guests"}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                                  <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                <span
+                                  className={`min-w-[34px] text-center text-sm font-bold tabular-nums ${theme.headingText}`}
+                                >
+                                  {state.guestCount}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    state.guestCount >= effectiveMaxSeats
+                                  }
+                                  onClick={() => handleStepCount(se.id, 1)}
+                                  aria-label={`Increase guests for ${se.name}`}
+                                  className={`inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${theme.headingText} hover:bg-[#B88433]/12`}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             ))}
                         </div>
                       </div>
@@ -566,7 +614,7 @@ export function RsvpForm({
           {overallAttending && (
             <div>
               <span
-                className={`mb-2 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+                className={`mb-2 block text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
               >
                 Meal Preference (Optional)
               </span>
@@ -578,9 +626,9 @@ export function RsvpForm({
                     onClick={() =>
                       setMealPreference(mealPreference === meal ? "" : meal)
                     }
-                    className={`cursor-pointer rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
+                    className={`min-h-[40px] cursor-pointer rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
                       mealPreference === meal
-                        ? "border-[#C88A2E] bg-[#C88A2E] text-[#241405]"
+                        ? "border-[#B88433] bg-[#C88A2E] text-[#221204]"
                         : `${theme.pillBg} ${theme.pillText}`
                     }`}
                   >
@@ -595,7 +643,7 @@ export function RsvpForm({
           <div>
             <label
               htmlFor={`guest-note-${code}`}
-              className={`mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] ${theme.headingText}`}
+              className={`mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.headingText}`}
             >
               Blessings or Note for the Host (Optional)
             </label>
@@ -613,7 +661,7 @@ export function RsvpForm({
             <button
               type="submit"
               disabled={submitting}
-              className={`flex-1 cursor-pointer rounded-xl px-6 py-3.5 text-sm font-semibold tracking-[0.06em] shadow-md transition-all disabled:cursor-not-allowed disabled:opacity-60 ${theme.primaryBtn}`}
+              className={`min-h-[48px] flex-1 cursor-pointer rounded-xl px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] shadow-md transition-all disabled:cursor-not-allowed disabled:opacity-60 ${theme.primaryBtn}`}
             >
               {submitting
                 ? "Saving Your Response..."
@@ -625,7 +673,7 @@ export function RsvpForm({
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className={`cursor-pointer rounded-xl border px-5 py-3.5 text-sm font-medium transition-colors ${theme.secondaryBtn}`}
+                className={`min-h-[48px] cursor-pointer rounded-xl border px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] transition-colors ${theme.secondaryBtn}`}
               >
                 Cancel
               </button>

@@ -54,8 +54,10 @@ export function SaffronLogo({
       </svg>
 
       {!compact && (
-        <span className={`font-serif text-[22px] font-semibold tracking-[0.04em] leading-none ${textColor}`}>
-          Saffron<span className="text-[#C88A2E]">Pass</span>
+        <span
+          className={`font-display text-[19px] font-semibold tracking-[0.08em] leading-none sm:text-[21px] ${textColor}`}
+        >
+          Saffron<span className="text-[#B88433]">Pass</span>
         </span>
       )}
     </span>

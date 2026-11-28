@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
 import { addManualRsvpAction } from "@/app/dashboard/actions";
 import { getSideTagLabel, MEAL_PREFERENCES } from "@/lib/constants";
 import type {
@@ -79,14 +80,19 @@ export function ManualGuestModal({
       });
 
       if (!res.ok) {
-        setError(res.error || "Could not add manual guest.");
+        const msg = res.error || "Could not add manual guest.";
+        setError(msg);
+        toast.error(msg);
         return;
       }
 
+      toast.success(`Manual RSVP added for "${guestName.trim()}".`);
       onClose();
       router.refresh();
     } catch {
-      setError("Network error while saving manual guest.");
+      const msg = "Network error while saving manual guest.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

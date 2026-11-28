@@ -12,23 +12,22 @@ interface ScratchRevealDateProps {
 }
 
 const SPARKLE_BURST = [
-  { x: -72, y: -44, size: 7, delay: 0 },
-  { x: -42, y: -62, size: 5, delay: 0.04 },
-  { x: 0, y: -74, size: 8, delay: 0.02 },
-  { x: 46, y: -60, size: 6, delay: 0.06 },
-  { x: 76, y: -40, size: 7, delay: 0.03 },
-  { x: -82, y: 10, size: 6, delay: 0.05 },
-  { x: 84, y: 8, size: 6, delay: 0.02 },
+  { x: -76, y: -44, size: 7, delay: 0 },
+  { x: -44, y: -64, size: 5, delay: 0.04 },
+  { x: 0, y: -76, size: 8, delay: 0.02 },
+  { x: 46, y: -62, size: 6, delay: 0.06 },
+  { x: 78, y: -40, size: 7, delay: 0.03 },
+  { x: -84, y: 12, size: 6, delay: 0.05 },
+  { x: 86, y: 8, size: 6, delay: 0.02 },
   { x: -58, y: 54, size: 7, delay: 0.04 },
   { x: 0, y: 68, size: 6, delay: 0.06 },
   { x: 60, y: 52, size: 7, delay: 0.01 },
 ];
 
 /**
- * Interactive Gold-Foil Scratch-to-Reveal Date card built with HTML5 Canvas.
- * Uses `touch-action: none` so mobile guests can rub off the gold foil smoothly
- * without triggering vertical scroll. Reveals cleanly with a gold sparkle burst
- * once 45% of the foil is scratched away.
+ * Interactive brushed metallic Gold-Foil Scratch-to-Reveal Date card.
+ * Enforces touch-action: none so mobile guests rub off foil smoothly without
+ * scrolling the page; auto-reveals with a gold sparkle celebration at 45%.
  */
 export function ScratchRevealDate({
   eventDate,
@@ -49,39 +48,54 @@ export function ScratchRevealDate({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = 320;
-    const h = 112;
+    const w = 340;
+    const h = 110;
     canvas.width = w;
     canvas.height = h;
 
-    // Paint brushed luxury gold foil texture
+    // Realistic brushed antique gold metallic foil gradient
     const grad = ctx.createLinearGradient(0, 0, w, h);
-    grad.addColorStop(0, "#D49B38");
-    grad.addColorStop(0.28, "#F5DA95");
-    grad.addColorStop(0.55, "#C78B28");
-    grad.addColorStop(0.82, "#F2D384");
-    grad.addColorStop(1, "#A87018");
+    grad.addColorStop(0, "#B88433");
+    grad.addColorStop(0.24, "#F1D48E");
+    grad.addColorStop(0.48, "#C68F37");
+    grad.addColorStop(0.74, "#F6E0A6");
+    grad.addColorStop(1, "#9B6A20");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle metallic sheen bands & micro-glitter grain
-    ctx.fillStyle = "rgba(255, 250, 232, 0.18)";
+    // Subtle brushed metal grain lines
+    ctx.strokeStyle = "rgba(255, 250, 232, 0.14)";
+    ctx.lineWidth = 1;
+    for (let y = 2; y < h; y += 3) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // Diagonal metallic light sheen bands
+    ctx.fillStyle = "rgba(255, 250, 232, 0.2)";
     for (let i = 0; i < 6; i++) {
       ctx.beginPath();
-      ctx.moveTo(i * 64 - 20, 0);
-      ctx.lineTo(i * 64 + 14, 0);
-      ctx.lineTo(i * 64 - 24, h);
-      ctx.lineTo(i * 64 - 58, h);
+      ctx.moveTo(i * 68 - 22, 0);
+      ctx.lineTo(i * 68 + 12, 0);
+      ctx.lineTo(i * 68 - 26, h);
+      ctx.lineTo(i * 68 - 60, h);
       ctx.closePath();
       ctx.fill();
     }
 
-    // Embossed gold-foil prompt text
-    ctx.fillStyle = "rgba(74, 41, 5, 0.78)";
-    ctx.font = "600 12px sans-serif";
+    // Fine inner foil border
+    ctx.strokeStyle = "rgba(74, 41, 5, 0.24)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(8, 8, w - 16, h - 16);
+
+    // Subtle embossed foil hint
+    ctx.fillStyle = "rgba(62, 34, 4, 0.82)";
+    ctx.font = "600 11px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("RUB GOLD FOIL TO REVEAL DATE", w / 2, h / 2);
+    ctx.fillText("RUB GOLD FOIL TO REVEAL", w / 2, h / 2);
   }, [revealed]);
 
   const computeClearedRatio = () => {
@@ -92,7 +106,6 @@ export function ScratchRevealDate({
     const { width, height } = canvas;
     const pixels = ctx.getImageData(0, 0, width, height).data;
     let cleared = 0;
-    // Sample every 16th pixel for instant mobile performance
     let sampled = 0;
     for (let i = 3; i < pixels.length; i += 64) {
       sampled += 1;
@@ -117,45 +130,41 @@ export function ScratchRevealDate({
     ctx.save();
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
     strokeCountRef.current += 1;
-    if (strokeCountRef.current % 6 === 0) {
-      if (computeClearedRatio() >= 0.45) {
-        setRevealed(true);
-      }
+    if (strokeCountRef.current % 6 === 0 && computeClearedRatio() >= 0.45) {
+      setRevealed(true);
     }
   };
 
   return (
-    <div className="relative mx-auto mt-5 flex max-w-xs flex-col items-center">
+    <div className="relative mx-auto mt-5 flex max-w-[330px] flex-col items-center">
       <p
         className={`mb-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] ${theme.accentText}`}
       >
         <Sparkles className="h-3 w-3" />
-        <span>{revealed ? "Save the Date" : "Scratch to Reveal the Date"}</span>
+        <span>{revealed ? "Save the Date" : "Rub Gold Foil to Reveal"}</span>
       </p>
 
       <div
-        className={`relative h-[104px] w-full overflow-hidden rounded-2xl border-2 shadow-inner ${theme.cardBorder} ${theme.countdownCell}`}
+        className={`relative h-[104px] w-full overflow-hidden rounded-2xl border shadow-inner ${theme.cardBorder} ${theme.countdownCell}`}
       >
-        {/* Revealed Date Layer */}
         <div className="flex h-full w-full flex-col items-center justify-center px-4 text-center">
           <span
-            className={`text-[10px] font-semibold uppercase tracking-[0.22em] ${theme.accentText}`}
+            className={`text-[9px] font-semibold uppercase tracking-[0.26em] ${theme.accentText}`}
           >
             Save the Date
           </span>
           <span
-            className={`mt-1 font-serif text-xl font-semibold sm:text-2xl ${theme.headingText}`}
+            className={`mt-1 font-editorial text-xl font-semibold sm:text-2xl ${theme.headingText}`}
           >
             {formattedDate}
           </span>
         </div>
 
-        {/* Gold-Foil Scratchable Canvas */}
         {!revealed && (
           <canvas
             ref={canvasRef}
@@ -178,13 +187,12 @@ export function ScratchRevealDate({
               isDrawingRef.current = false;
             }}
             style={{ touchAction: "none" }}
-            aria-label="Scratch off gold foil to reveal the celebration date"
+            aria-label="Rub gold foil to reveal celebration date"
             className="absolute inset-0 h-full w-full cursor-pointer select-none"
           />
         )}
       </div>
 
-      {/* Sparkle / Confetti Burst when 45% scratched */}
       {revealed && (
         <div
           aria-hidden="true"
@@ -197,19 +205,19 @@ export function ScratchRevealDate({
               animate={{
                 x: sp.x,
                 y: sp.y,
-                scale: [0.6, 1.25, 0],
+                scale: [0.6, 1.3, 0],
                 opacity: [1, 1, 0],
                 rotate: 135,
               }}
               transition={{
-                duration: 0.9,
+                duration: 0.92,
                 delay: sp.delay,
                 ease: [0.22, 1, 0.36, 1],
               }}
               style={{
                 width: sp.size,
                 height: sp.size,
-                backgroundColor: idx % 2 === 0 ? "#E7C06B" : "#D97706",
+                backgroundColor: idx % 2 === 0 ? "#E7C06B" : "#C88A2E",
               }}
               className="absolute block rounded-xs"
             />
@@ -221,7 +229,7 @@ export function ScratchRevealDate({
         <button
           type="button"
           onClick={() => setRevealed(true)}
-          className={`mt-2 cursor-pointer text-[11px] underline-offset-2 opacity-75 hover:opacity-100 hover:underline ${theme.mutedText}`}
+          className={`mt-2 min-h-[36px] cursor-pointer text-[10px] font-medium uppercase tracking-[0.18em] opacity-75 hover:opacity-100 hover:underline ${theme.mutedText}`}
         >
           Tap to reveal directly
         </button>
